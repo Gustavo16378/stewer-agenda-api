@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stewer-agenda-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stewer_agenda
+      POSTGRES_USER: stewer
+      POSTGRES_PASSWORD: stewer
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      # Padrao 5432. Se a maquina ja tiver um PostgreSQL local nessa porta,
+      # exporte POSTGRES_PORT=5433 antes do "docker compose up" e ajuste a URL
+      # com -Dquarkus.datasource.jdbc.url (veja o README).
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - stewer_agenda_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stewer -d stewer_agenda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  stewer_agenda_pgdata:
+    name: stewer_agenda_pgdata

@@ -1,0 +1,374 @@
+# Stewer Agenda API
+
+API REST de agendamento para estúdio de visagismo e consultoria de imagem.
+
+Um estabelecimento no lançamento, **schema multi-tenant desde o primeiro commit**: toda tabela
+de negócio carrega `tenant_id` e nenhuma query roda sem esse filtro. O dia em que existir o
+segundo estúdio, não há migration de emergência para escrever.
+
+---
+
+## Stack
+
+| Camada | Escolha |
+|---|---|
+| Linguagem | Java 21 |
+| Framework | Quarkus 3.33.3.1 (LTS) |
+| Build | Maven (via `mvnw`, não precisa ter Maven instalado) |
+| Banco | PostgreSQL 16 |
+| Persistência | Hibernate ORM com Panache — **padrão Repository** |
+| Migrations | Flyway |
+| Auth | SmallRye JWT (HS256) — roles `CLIENTE`, `PROFISSIONAL`, `ADMIN` |
+| Validação | Bean Validation (Hibernate Validator) |
+| Docs | OpenAPI + Swagger UI |
+| Testes | JUnit 5 + RestAssured, contra PostgreSQL 16 real (Dev Services / Testcontainers) |
+
+Arquitetura em camadas: `resource` (HTTP) → `service` (regra de negócio, transação) →
+`repository` (Panache). DTOs de entrada e saída são tipos separados das entidades, com
+**mappers manuais** — sem geração de código, sem mágica de runtime.
+
+---
+
+## Pré-requisitos
+
+- **JDK 21** (`java -version` deve mostrar 21)
+- **Docker** rodando — usado pelo `docker-compose` em dev e pelos Testcontainers nos testes
+
+Maven não é necessário: o repositório traz o Maven Wrapper (`./mvnw` / `mvnw.cmd`).
+
+---
+
+## Passo a passo
+
+### 1. Subir o banco
+
+```bash
+docker compose up -d
+```
+
+Sobe um PostgreSQL 16 em `localhost:5432` (banco `stewer_agenda`, usuário e senha `stewer`),
+com volume nomeado `stewer_agenda_pgdata` — os dados sobrevivem a `docker compose down`.
+
+Para conferir:
+
+```bash
+docker compose ps
+docker compose logs -f postgres
+```
+
+> **Ja tem um PostgreSQL na sua maquina?** Se a porta 5432 estiver ocupada por uma instalacao
+> local, o container sobe mas as conexoes vao parar no Postgres errado -- o sintoma e
+> `autenticacao do tipo senha falhou para o usuario "stewer"`. Nesse caso, publique o
+> container em outra porta e aponte o dev para ela:
+>
+> ```bash
+> POSTGRES_PORT=5433 docker compose up -d
+> ./mvnw quarkus:dev -Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:5433/stewer_agenda
+> ```
+
+### 2. Rodar em modo dev
+
+```bash
+./mvnw quarkus:dev
+```
+
+No Windows (PowerShell / cmd): `.\mvnw.cmd quarkus:dev`
+
+No boot o Flyway aplica `V1` (schema) e `V2` (seed de desenvolvimento). A API sobe em
+**http://localhost:8080**.
+
+| O quê | Onde |
+|---|---|
+| Swagger UI | http://localhost:8080/q/swagger-ui |
+| OpenAPI (JSON) | http://localhost:8080/q/openapi?format=json |
+| Dev UI do Quarkus | http://localhost:8080/q/dev |
+
+### 3. Rodar os testes
+
+```bash
+./mvnw test
+```
+
+Não use o banco do compose: o profile `test` **não** define datasource, então o Quarkus sobe um
+container PostgreSQL 16 descartável via Dev Services e aplica só a `V1`. O schema testado é
+byte a byte o mesmo que vai para produção, e nenhum teste depende do seed.
+
+Rodar uma classe ou um teste só:
+
+```bash
+./mvnw test -Dtest=HorariosLivresResourceTest
+./mvnw test -Dtest=HorariosLivresResourceTest#diaSemDisponibilidadeNaoTemSlot
+```
+
+### 4. Empacotar
+
+```bash
+./mvnw package                       # target/quarkus-app/quarkus-run.jar
+java -jar target/quarkus-app/quarkus-run.jar
+```
+
+---
+
+## Usuários do seed (profile dev)
+
+A migration `V2` roda **apenas em dev** e cria o estúdio "Stewer Gabriel"
+(slug `stewer-gabriel`).
+
+**A senha de todos é `dev12345`.**
+
+| Papel | E-mail | Nome |
+|---|---|---|
+| `ADMIN` | `admin@stewer.dev` | Gabriel Admin |
+| `PROFISSIONAL` | `stewer@stewer.dev` | Stewer Gabriel — especialidade Visagismo |
+| `CLIENTE` | `joana@exemplo.dev` | Joana Ribeiro |
+| `CLIENTE` | `marcos@exemplo.dev` | Marcos Tavares |
+
+Também vêm 3 serviços — Corte + Visagismo (60 min, R$ 180,00), Consultoria de Imagem
+(90 min, R$ 320,00) e Barba (30 min, R$ 70,00) — e a grade de disponibilidade do Stewer de
+**segunda a sábado, 09:00 às 19:00**.
+
+O hash gravado no seed é BCrypt custo 10 com salt fixo, para que o checksum da migration não
+mude a cada build:
+
+```
+$2a$10$S1Pjb0TwOUbjZkPfPET0GO2XaZS8//YwbiyMnC5cHEqg9hqTkKbAO
+```
+
+### Pegando um token
+
+```bash
+curl -s -X POST http://localhost:8080/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"stewer@stewer.dev","senha":"dev12345"}'
+```
+
+Depois mande `Authorization: Bearer <token>` nas demais chamadas. No Swagger UI, use o botão
+**Authorize** e cole apenas o token.
+
+---
+
+## Endpoints
+
+### Auth
+| Método | Rota | Quem |
+|---|---|---|
+| `POST` | `/auth/registrar` | público — cria `CLIENTE` no tenant |
+| `POST` | `/auth/login` | público — devolve JWT com role e tenant |
+| `GET` | `/auth/eu` | autenticado — dados do token atual |
+
+### Serviços
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/servicos` | autenticado |
+| `GET` | `/servicos/{id}` | autenticado |
+| `POST` | `/servicos` | `ADMIN` |
+| `PUT` | `/servicos/{id}` | `ADMIN` |
+| `DELETE` | `/servicos/{id}` | `ADMIN` — soft delete |
+
+### Profissionais
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/profissionais` | autenticado |
+| `GET` | `/profissionais/{id}` | autenticado |
+| `POST` | `/profissionais` | `ADMIN` |
+| `PUT` | `/profissionais/{id}` | `ADMIN` |
+| `DELETE` | `/profissionais/{id}` | `ADMIN` — soft delete |
+
+### Disponibilidade e bloqueios
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/profissionais/{id}/disponibilidade` | autenticado |
+| `PUT` | `/profissionais/{id}/disponibilidade` | `PROFISSIONAL` dono ou `ADMIN` — substitui a grade semanal inteira |
+| `GET` | `/profissionais/{id}/bloqueios` | autenticado |
+| `POST` | `/profissionais/{id}/bloqueios` | `PROFISSIONAL` dono ou `ADMIN` |
+| `DELETE` | `/profissionais/{id}/bloqueios/{bloqueioId}` | `PROFISSIONAL` dono ou `ADMIN` |
+
+### Agendamentos
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/profissionais/{id}/horarios-livres?data=YYYY-MM-DD&servicoId=…` | autenticado |
+| `POST` | `/agendamentos` | `CLIENTE` — cria para si |
+| `GET` | `/agendamentos/meus?periodo=futuros\|historico\|todos` | `CLIENTE` |
+| `GET` | `/agendamentos/agenda?data=YYYY-MM-DD` | `PROFISSIONAL` (própria) / `ADMIN` (com `profissionalId`) |
+| `PATCH` | `/agendamentos/{id}/status` | `PROFISSIONAL`/`ADMIN` concluem, cancelam ou marcam não comparecimento; `CLIENTE` só cancela o próprio |
+
+### Clientes (visão do profissional)
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/clientes?busca=&pagina=&tamanho=` | `PROFISSIONAL` / `ADMIN` |
+| `GET` | `/clientes/{id}` | `PROFISSIONAL` / `ADMIN` — dados + histórico |
+| `POST` | `/clientes/{id}/anotacoes` | `PROFISSIONAL` |
+| `GET` | `/clientes/{id}/anotacoes` | `PROFISSIONAL` / `ADMIN` |
+
+### Formato de erro
+
+Toda falha volta no mesmo envelope:
+
+```json
+{
+  "codigo": "HORARIO_OCUPADO",
+  "mensagem": "Ja existe um agendamento neste horario",
+  "status": 409,
+  "timestamp": "2026-09-01T22:14:03.512Z"
+}
+```
+
+Erro de validação (400) inclui `violacoes`:
+
+```json
+{
+  "codigo": "VALIDACAO",
+  "mensagem": "Requisicao invalida",
+  "status": 400,
+  "violacoes": [{ "campo": "email", "mensagem": "email invalido" }]
+}
+```
+
+`codigo` é estável — trate por ele, nunca pelo texto da mensagem.
+
+---
+
+## O endpoint de horários livres
+
+`GET /profissionais/{id}/horarios-livres?data=YYYY-MM-DD&servicoId=…` é a peça central. O
+cálculo é:
+
+1. pega a **grade semanal** do profissional para o dia da semana daquela data;
+2. subtrai os **bloqueios** que tocam a janela;
+3. subtrai os **agendamentos ativos** — só status `AGENDADO` ocupa; `CANCELADO`,
+   `CONCLUIDO` e `NAO_COMPARECEU` liberam o horário;
+4. fatia o que sobrou pela **duração do serviço**, descartando slot que não caiba inteiro na
+   faixa;
+5. quando a data pedida é hoje, omite o que já passou.
+
+Sobreposição usa intervalo meio-aberto (`a.inicio < b.fim && a.fim > b.inicio`): um
+atendimento que termina 10:00 e outro que começa 10:00 **não** conflitam.
+
+Dia sem grade devolve `200` com lista vazia — não `404`.
+
+---
+
+## Regras de dados (valem para todo o projeto)
+
+- **Migrations sempre aditivas.** Nunca `DROP`, nunca `ALTER` destrutivo. Precisa mudar uma
+  coluna? Cria a nova, migra o dado, para de ler a antiga.
+- **Soft delete em toda entidade de negócio.** `deleted_at timestamptz NULL`; as queries
+  padrão filtram `deleted_at IS NULL` (veja `TenantScopedRepository`). `DELETE` de recurso
+  marca a coluna, não apaga a linha.
+- **`created_at` / `updated_at` em toda tabela**, preenchidos pelo Hibernate.
+- **IDs são UUID**, gerados pela aplicação.
+- **Timestamps em UTC** (`timestamptz`). Instantes usam `OffsetDateTime`; hora do dia da grade
+  semanal usa `time` / `LocalTime`.
+  > Nao ative `quarkus.hibernate-orm.jdbc.timezone=UTC`. Ele faz o driver converter as colunas
+  > `time` pelo fuso da JVM: a grade gravada como 09:00 volta como 06:00 numa maquina em UTC-3,
+  > e todos os horarios oferecidos ao cliente saem errados. Os instantes ja sao `timestamptz`
+  > (absolutos), entao a propriedade nao acrescenta nada. `DisponibilidadeSeedTimezoneTest`
+  > trava essa regressao gravando a grade por SQL cru, como a migration do seed faz.
+- **Índices**: `tenant_id` em toda tabela de negócio, `agendamento (profissional_id, inicio)`,
+  `usuario (tenant_id, email)` — mais um índice parcial em `agendamento` só para os
+  `AGENDADO` vivos, que é o que o cálculo de horários livres consulta.
+
+### ⚠️ A versão `V2` está reservada
+
+O seed de dev é `db/seed/V2__seed_dev.sql`. Ele fica num diretório **irmão** de `db/migration`
+(e não dentro dele) porque `quarkus.flyway.locations` é resolvido em tempo de build e o scan é
+recursivo — aninhado, ele vazaria para produção.
+
+Consequência: **a próxima migration de negócio deve ser `V3`**. Se alguém criar
+`db/migration/V2__…`, o profile dev passa a enxergar duas migrations com versão 2 e o Flyway
+aborta com `Found more than one migration with version 2`.
+
+```
+src/main/resources/db/
+├── migration/            <- todos os profiles (vai para o jar de prod)
+│   └── V1__init_schema.sql
+└── seed/                 <- SÓ dev
+    └── V2__seed_dev.sql
+```
+
+---
+
+## Configuração por profile
+
+| Profile | Banco | Migrations |
+|---|---|---|
+| `dev` | `docker-compose` em `localhost:5432` | `V1` + seed `V2` |
+| `test` | container efêmero via Dev Services | só `V1` |
+| `prod` | variáveis de ambiente | só `V1` |
+
+### Variáveis de ambiente (profile prod / Railway)
+
+Veja `.env.example`. As que importam:
+
+| Variável | Descrição |
+|---|---|
+| `DATABASE_URL` | URL **JDBC**: `jdbc:postgresql://host:5432/banco` |
+| `DATABASE_USERNAME` | usuário do banco |
+| `DATABASE_PASSWORD` | senha do banco |
+| `JWT_SECRET` | segredo HMAC. Gere com `openssl rand -base64 48` |
+| `JWT_ISSUER` | emissor gravado em `iss` (default `https://stewer-agenda-api`) |
+| `JWT_EXPIRACAO_SEGUNDOS` | validade do token (default `28800` = 8h) |
+| `TENANT_SLUG_PADRAO` | slug usado quando o cliente não informa (default `stewer-gabriel`) |
+| `PORT` | porta HTTP — o Railway injeta sozinho |
+
+O Railway costuma expor `DATABASE_URL` no formato `postgresql://user:senha@host:porta/banco`,
+que **não** é JDBC. Converta antes de injetar:
+
+```
+postgresql://u:s@host:5432/db   ->   jdbc:postgresql://host:5432/db
+                                     DATABASE_USERNAME=u
+                                     DATABASE_PASSWORD=s
+```
+
+`JWT_SECRET` aceita qualquer string. O SmallRye JWT, por baixo, só entende chave simétrica no
+formato JWK — quem faz essa ponte é `JwtSecretConfigInterceptor`, que converte o segredo em
+`{"kty":"oct","k":"…"}` na leitura da configuração. Isso mantém a variável de ambiente
+simples de configurar sem abrir mão do HS256.
+
+Em produção o Flyway roda com `clean-disabled=true`: nem uma variável de ambiente perdida
+consegue limpar o banco.
+
+---
+
+## Estrutura
+
+```
+src/main/java/dev/gustavo/stewer/
+├── config/       JwtSecretConfigInterceptor (segredo HMAC -> JWK)
+├── domain/       entidades JPA, BaseEntity, TenantOwnedEntity, enums
+├── dto/          records de entrada e saída, por área
+├── exception/    exceções de negócio + ExceptionMappers + envelope de erro
+├── mapper/       conversão manual entidade <-> DTO
+├── repository/   Panache (padrão Repository); TenantScopedRepository é a base
+├── resource/     endpoints JAX-RS
+├── security/     TokenService (emissão) e UsuarioLogado (leitura do JWT)
+└── service/      regra de negócio e transações
+
+src/main/resources/
+├── application.properties
+├── META-INF/services/       registro do ConfigSourceInterceptor
+└── db/{migration,seed}/
+
+src/test/java/dev/gustavo/stewer/
+├── resource/     testes de endpoint com RestAssured
+└── util/         DadosDeTeste — fábrica de cenários
+```
+
+---
+
+## Comandos úteis
+
+```bash
+docker compose up -d          # sobe o Postgres
+docker compose down           # para (mantém o volume)
+docker compose down -v        # para e APAGA os dados de dev
+
+./mvnw quarkus:dev            # dev com live reload
+./mvnw test                   # testes
+./mvnw package                # jar
+./mvnw quarkus:dev -Dquarkus.flyway.clean-at-start=true   # recria o banco de dev do zero
+```
+
+---
+
+Desenvolvido por **Gustavo Dev** — https://gustavodev.dev/
