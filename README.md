@@ -283,6 +283,12 @@ Dia sem grade devolve `200` com lista vazia — não `404`.
   > e todos os horarios oferecidos ao cliente saem errados. Os instantes ja sao `timestamptz`
   > (absolutos), entao a propriedade nao acrescenta nada. `DisponibilidadeSeedTimezoneTest`
   > trava essa regressao gravando a grade por SQL cru, como a migration do seed faz.
+- **Disputa é 409, nunca 500.** Cadastro de e-mail repetido, nome de serviço repetido, ficha
+  duplicada e horário já reservado têm restrição no banco; `ViolacaoDeBanco` traduz a violação
+  no conflito de negócio correspondente. Fica no exception mapper e não no service porque, com
+  id gerado pela aplicação, o Hibernate pode adiar o `INSERT` para o commit — e aí a exceção já
+  escapou do `try`. Restrição fora da lista conhecida continua virando 500, que é o certo para
+  um defeito que ninguém previu.
 - **Índices**: `tenant_id` em toda tabela de negócio, `agendamento (profissional_id, inicio)`,
   `usuario (tenant_id, email)` — mais um índice parcial em `agendamento` só para os
   `AGENDADO` vivos, que é o que o cálculo de horários livres consulta.
@@ -296,14 +302,15 @@ recursivo — aninhado, ele vazaria para produção.
 Consequência: nenhuma migration de negócio pode se chamar `V2`. Se alguém criar
 `db/migration/V2__…`, o profile dev passa a enxergar duas migrations com versão 2 e o Flyway
 aborta com `Found more than one migration with version 2`. A numeração de negócio já seguiu
-para `V4`; a próxima é `V5`.
+para `V5`; a próxima é `V6`.
 
 ```
 src/main/resources/db/
 ├── migration/            <- todos os profiles (vai para o jar de prod)
 │   ├── V1__init_schema.sql
 │   ├── V3__fuso_do_estabelecimento.sql
-│   └── V4__agendamento_sem_sobreposicao.sql
+│   ├── V4__agendamento_sem_sobreposicao.sql
+│   └── V5__servico_nome_unico.sql
 └── seed/                 <- SÓ dev
     └── V2__seed_dev.sql
 ```

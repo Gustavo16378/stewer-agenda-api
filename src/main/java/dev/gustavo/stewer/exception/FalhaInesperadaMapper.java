@@ -1,5 +1,7 @@
 package dev.gustavo.stewer.exception;
 
+import java.util.Optional;
+
 import org.jboss.logging.Logger;
 
 import jakarta.ws.rs.WebApplicationException;
@@ -29,6 +31,22 @@ public class FalhaInesperadaMapper implements ExceptionMapper<Throwable> {
             return Response.status(status)
                     .type(MediaType.APPLICATION_JSON)
                     .entity(ErroResposta.de(codigoPara(status), mensagemPara(status, web), status))
+                    .build();
+        }
+
+        // Violacao de restricao do banco e disputa, nao defeito: dois cadastros
+        // com o mesmo e-mail, duas reservas no mesmo horario. O service tenta
+        // evitar antes, mas com id gerado pela aplicacao o Hibernate pode adiar
+        // o INSERT para o commit -- e ai a excecao ja escapou do try dele e
+        // chega aqui embrulhada em RollbackException. 409 e a resposta certa, e
+        // sem stack trace: nao ha nada para investigar.
+        Optional<ConflitoException> conflito = ViolacaoDeBanco.comoConflito(falha);
+        if (conflito.isPresent()) {
+            ConflitoException e = conflito.get();
+            LOG.debugf("Conflito de integridade resolvido como %s", e.getCodigo());
+            return Response.status(e.getStatus())
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(ErroResposta.de(e.getCodigo(), e.getMessage(), e.getStatus()))
                     .build();
         }
 

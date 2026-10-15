@@ -47,7 +47,9 @@ public class ServicoService {
         Servico servico = new Servico();
         servico.setTenantId(tenantId);
         aplicar(servico, dto, nome);
-        // Flush imediato para que id e timestamps ja voltem preenchidos na resposta.
+        // Flush imediato para que id e timestamps ja voltem preenchidos na resposta
+        // -- e para que a violacao do indice unico apareca aqui, onde da para
+        // traduzi-la no mesmo 409 que a checagem acima devolve.
         servicoRepository.persistAndFlush(servico);
 
         return ServicoMapper.paraResponse(servico);
