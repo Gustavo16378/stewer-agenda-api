@@ -1,0 +1,80 @@
+name: CI
+
+# Roda a suite inteira e monta a imagem de producao. Nada e publicado:
+# o deploy quem faz e o Render, a partir do push na main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  testes:
+    name: Testes (Maven + PostgreSQL)
+    runs-on: ubuntu-latest
+
+    # A imagem oficial do Postgres ja traz o btree_gist, que a migration V4
+    # precisa. Em teste o Quarkus subiria um container proprio via Dev
+    # Services, mas aqui apontamos para este: o CI roda em container e
+    # Testcontainers dentro de Actions e mais lento e mais fragil.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: stewer_teste
+          POSTGRES_USER: stewer
+          POSTGRES_PASSWORD: stewer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stewer -d stewer_teste"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Testes
+        # O profile de teste nao define datasource de proposito (para usar Dev
+        # Services localmente). Aqui apontamos para o service container, e o
+        # Quarkus usa este em vez de subir outro.
+        run: >-
+          ./mvnw -B test
+          -Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:5432/stewer_teste
+          -Dquarkus.datasource.username=stewer
+          -Dquarkus.datasource.password=stewer
+
+      - name: Relatorio dos testes
+        if: always()
+        run: |
+          echo "### Testes" >> "$GITHUB_STEP_SUMMARY"
+          grep -h "Tests run" target/surefire-reports/*.txt \
+            | sed 's/, Time.*//' \
+            | awk -F'[ ,]' '{t+=$3; f+=$6; e+=$9} END {
+                printf "- %d testes, %d falhas, %d erros\n", t, f, e }' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+  imagem:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Monta a imagem de producao
+        # Sem push: o objetivo e descobrir Dockerfile quebrado no PR, e nao no
+        # deploy. O Render faz o build dele a partir do mesmo arquivo.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: stewer-agenda-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
