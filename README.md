@@ -172,7 +172,7 @@ Depois mande `Authorization: Bearer <token>` nas demais chamadas. No Swagger UI,
 | `GET` | `/profissionais/{id}` | autenticado |
 | `POST` | `/profissionais` | `ADMIN` |
 | `PUT` | `/profissionais/{id}` | `ADMIN` |
-| `DELETE` | `/profissionais/{id}` | `ADMIN` — soft delete |
+| `DELETE` | `/profissionais/{id}` | `ADMIN` — soft delete da ficha **e** rebaixa o usuário a `CLIENTE` |
 
 ### Disponibilidade e bloqueios
 | Método | Rota | Quem |

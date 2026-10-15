@@ -109,12 +109,32 @@ public class ProfissionalService {
     }
 
     /**
-     * Soft delete. A role do usuario e mantida de proposito: ele pode continuar
-     * precisando enxergar o historico de atendimentos que ja fez.
+     * Soft delete da ficha E rebaixamento do usuario.
+     *
+     * <p>Antes a role {@code PROFISSIONAL} era mantida "para ele continuar
+     * vendo o historico". O efeito real era outro: desligar alguem nao tirava
+     * nada: o login seguia valendo e {@code /clientes} exige so a role, entao o
+     * ex-funcionario continuava lendo a clientela inteira e as anotacoes de
+     * todos os colegas, sem o ADMIN ter como impedir.
+     *
+     * <p>Rebaixar fecha os logins futuros. O token de ate 8h que ele ja tenha
+     * no bolso e fechado do outro lado, em {@code ClienteService}, que passa a
+     * exigir ficha viva de quem se apresenta como PROFISSIONAL.
+     *
+     * <p>O historico dos atendimentos nao se perde: os {@code Agendamento}
+     * continuam apontando para a ficha, que e soft delete, e a agenda do
+     * estabelecimento segue visivel para o ADMIN.
      */
     @Transactional
     public void remover(UUID tenantId, UUID id) {
-        profissionalRepository.softDelete(buscar(tenantId, id));
+        Profissional profissional = buscar(tenantId, id);
+        profissionalRepository.softDelete(profissional);
+
+        Usuario usuario = profissional.getUsuario();
+        if (usuario != null && usuario.getRole() == Role.PROFISSIONAL) {
+            usuario.setRole(Role.CLIENTE);
+            usuarioRepository.persist(usuario);
+        }
     }
 
     private Profissional buscar(UUID tenantId, UUID id) {
