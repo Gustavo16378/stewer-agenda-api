@@ -331,6 +331,10 @@ Veja `.env.example`. As que importam:
 | `JWT_ISSUER` | emissor gravado em `iss` (default `https://stewer-agenda-api`) |
 | `JWT_EXPIRACAO_SEGUNDOS` | validade do token (default `28800` = 8h) |
 | `TENANT_SLUG_PADRAO` | slug usado quando o cliente não informa (default `stewer-gabriel`) |
+| `BOOTSTRAP_TENANT_NOME` | nome do estabelecimento criado no primeiro boot |
+| `BOOTSTRAP_TENANT_FUSO` | fuso IANA da grade (default `America/Araguaina`) |
+| `BOOTSTRAP_ADMIN_EMAIL` | e-mail do admin inicial — opcional |
+| `BOOTSTRAP_ADMIN_SENHA` | senha dele, mínimo 8 caracteres. Obrigatória se o e-mail estiver definido |
 | `PORT` | porta HTTP — o Railway injeta sozinho |
 
 O Railway costuma expor `DATABASE_URL` no formato `postgresql://user:senha@host:porta/banco`,
@@ -341,6 +345,38 @@ postgresql://u:s@host:5432/db   ->   jdbc:postgresql://host:5432/db
                                      DATABASE_USERNAME=u
                                      DATABASE_PASSWORD=s
 ```
+
+### O primeiro deploy
+
+As migrations de produção são DDL puro: não criam nenhuma linha. O estabelecimento só
+nasce no seed de dev, que nunca vai para produção. Sem nada a mais, a API subiria verde e o
+primeiro cadastro responderia `404 Estabelecimento nao encontrado`.
+
+Quem resolve isso é `BootstrapEstabelecimento`: na subida, cria o que faltar a partir das
+variáveis de ambiente. É **idempotente** (compara por slug e por e-mail) e **não
+sobrescreve** nada que já exista — mudar o nome ou o fuso depois é operação de banco, não
+efeito colateral de reiniciar.
+
+```bash
+BOOTSTRAP_TENANT_NOME="Stewer Gabriel"
+BOOTSTRAP_TENANT_FUSO=America/Araguaina
+BOOTSTRAP_ADMIN_EMAIL=voce@seudominio.com
+BOOTSTRAP_ADMIN_SENHA="$(openssl rand -base64 18)"   # guarde antes de colar
+```
+
+O admin inicial é opcional, mas se `BOOTSTRAP_ADMIN_EMAIL` estiver definido a senha passa a
+ser obrigatória (mínimo 8 caracteres) e a API recusa subir sem ela — meia configuração é
+pior que nenhuma, porque ninguém descobre que não há administrador até precisar de um.
+Depois do primeiro boot as duas variáveis podem ser removidas.
+
+> **Por que na aplicação e não numa migration:** migration não é lugar de credencial. O hash
+> ficaria escrito num arquivo versionado, como acontece com o seed de dev, cuja senha todo
+> mundo conhece. Aqui os valores vêm do ambiente e nunca entram no repositório.
+>
+> A senha **não** aparece no log; o e-mail aparece, para o operador confirmar quem foi criado.
+
+`BancoVazioTest` sobe a API contra um estabelecimento que nenhuma migration cria e confere
+que cadastro, login e `/auth/eu` funcionam.
 
 ### O segredo do JWT
 
