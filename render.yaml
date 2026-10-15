@@ -1,0 +1,92 @@
+# =====================================================================
+# Blueprint do Render — Stewer Agenda API
+#
+# No painel: New > Blueprint > aponte para este repositorio. O Render le este
+# arquivo, cria o servico e PERGUNTA os valores marcados com `sync: false`.
+#
+# Nenhum segredo mora aqui. Este repositorio e publico.
+#
+# O banco NAO esta declarado de proposito: o PostgreSQL gratuito do Render
+# expira em 30 dias. O banco e um projeto Neon, criado a parte, e entra aqui
+# como a variavel DATABASE_URL. Passo a passo em DEPLOY.md.
+# =====================================================================
+
+services:
+  - type: web
+    name: stewer-agenda-api
+    runtime: docker
+    plan: free
+    # Virginia (US East) e a regiao do Render mais proxima do Brasil -- a
+    # empresa nao tem regiao na America do Sul. O projeto do Neon deve ficar em
+    # AWS us-east-1, a MESMA regiao fisica: a latencia que pesa e a de cada
+    # consulta entre API e banco, nao a do usuario ate a API. Banco em Sao
+    # Paulo com API na Virginia somaria uma viagem de ida e volta
+    # intercontinental por query.
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
+    # O health check do Render bate aqui o tempo todo. Tem de ser o endpoint
+    # leve: /q/health e /q/health/ready consultam o banco e manteriam o compute
+    # do Neon acordado para sempre.
+    healthCheckPath: /ping
+
+    envVars:
+      # ---------------------------------------------------------------
+      # Preencher no painel (nunca neste arquivo)
+      # ---------------------------------------------------------------
+
+      # Connection string DIRETA do Neon, como o painel mostra:
+      #   postgresql://usuario:senha@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require
+      # Use a direta, nao a "pooled": a API ja tem pool proprio.
+      - key: DATABASE_URL
+        sync: false
+
+      # openssl rand -base64 48
+      # Sem esta variavel a API recusa subir, de proposito.
+      - key: JWT_SECRET
+        sync: false
+
+      # E-mail do primeiro administrador. Opcional: deixando vazio, nenhum
+      # admin e criado e o primeiro cadastro pelo app nasce como CLIENTE.
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+
+      # Obrigatoria se BOOTSTRAP_ADMIN_EMAIL estiver preenchida (minimo 8
+      # caracteres). Depois do primeiro deploy as duas podem ser removidas.
+      - key: BOOTSTRAP_ADMIN_SENHA
+        sync: false
+
+      # Origens do app web, separadas por virgula. Ex.:
+      #   https://stewer.vercel.app,https://app.stewer.dev
+      # O app mobile nao precisa de CORS; so o export web.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ---------------------------------------------------------------
+      # Valores fixos (nao sao segredo)
+      # ---------------------------------------------------------------
+
+      # Liga o perfil de producao do Quarkus. Sem isto a API sobe em dev e
+      # tenta um Postgres em localhost.
+      - key: QUARKUS_PROFILE
+        value: prod
+
+      - key: BOOTSTRAP_TENANT_NOME
+        value: Stewer Gabriel
+
+      # Palmas (TO). NAO use America/Sao_Paulo: se o horario de verao voltar,
+      # so Sao Paulo muda de offset e a agenda sai uma hora errada.
+      - key: BOOTSTRAP_TENANT_FUSO
+        value: America/Araguaina
+
+      - key: CORS_HABILITADO
+        value: "true"
+
+      - key: TENANT_SLUG_PADRAO
+        value: stewer-gabriel
+
+      # 8h. Nao ha refresh token: subir muito deixa sessao vazada viva demais,
+      # baixar demais faz o cliente relogar no meio do agendamento.
+      - key: JWT_EXPIRACAO_SEGUNDOS
+        value: "28800"
