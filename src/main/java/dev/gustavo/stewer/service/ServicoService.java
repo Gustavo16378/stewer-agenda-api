@@ -47,9 +47,11 @@ public class ServicoService {
         Servico servico = new Servico();
         servico.setTenantId(tenantId);
         aplicar(servico, dto, nome);
-        // Flush imediato para que id e timestamps ja voltem preenchidos na resposta
-        // -- e para que a violacao do indice unico apareca aqui, onde da para
-        // traduzi-la no mesmo 409 que a checagem acima devolve.
+        // Flush imediato para que id e timestamps ja voltem preenchidos na resposta.
+        // A checagem acima resolve o caso comum sem ir ao banco. Sob corrida as
+        // duas transacoes passam por ela, e quem barra e ux_servico_tenant_nome.
+        // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
+        // INSERT pode sair so no commit e escapar de um try daqui.
         servicoRepository.persistAndFlush(servico);
 
         return ServicoMapper.paraResponse(servico);

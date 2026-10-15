@@ -56,10 +56,10 @@ public class AuthService {
         usuario.setSenhaHash(BcryptUtil.bcryptHash(dto.senha()));
         usuario.setRole(Role.CLIENTE);
 
-        // A checagem acima resolve o caso comum sem ir ao banco. Sob corrida,
-        // duas transacoes passam as duas por ela e quem barra e o indice ux_usuario_tenant_email;
-        // ViolacaoDeBanco traduz essa violacao no mesmo 409, no mapper -- aqui
-        // nao da para capturar, porque o INSERT pode sair so no commit.
+        // A checagem acima resolve o caso comum sem ir ao banco. Sob corrida as
+        // duas transacoes passam por ela, e quem barra e ux_usuario_tenant_email.
+        // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
+        // INSERT pode sair so no commit e escapar de um try daqui.
         usuarioRepository.persist(usuario);
 
         return montarToken(usuario);

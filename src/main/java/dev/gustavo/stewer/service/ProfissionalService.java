@@ -79,6 +79,10 @@ public class ProfissionalService {
         profissional.setBio(normalizar(dto.bio()));
         profissional.setFotoUrl(normalizar(dto.fotoUrl()));
         profissional.setAtivo(dto.ativo() == null || dto.ativo());
+        // A checagem acima resolve o caso comum sem ir ao banco. Sob corrida as
+        // duas transacoes passam por ela, e quem barra e ux_profissional_usuario.
+        // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
+        // INSERT pode sair so no commit e escapar de um try daqui.
         profissionalRepository.persist(profissional);
 
         return ProfissionalMapper.paraResponse(profissional);
