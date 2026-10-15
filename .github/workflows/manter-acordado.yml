@@ -1,0 +1,81 @@
+name: Manter a API acordada
+
+# O Web Service gratuito do Render dorme depois de 15 minutos sem trafego e
+# leva cerca de um minuto para acordar. Este workflow bate no endpoint leve de
+# 10 em 10 minutos para que o primeiro cliente do dia nao espere esse minuto.
+#
+# /ping NAO toca no banco, de proposito: se tocasse, manteria o compute do Neon
+# acordado 24h por dia e as 100 CU-hours do mes acabariam na primeira quinzena.
+#
+# LIMITACOES DO AGENDAMENTO DO GITHUB (nao sao bugs daqui):
+#   - o cron de Actions nao e pontual. Em horario de pico a fila atrasa alguns
+#     minutos, e execucoes podem ser puladas. Com intervalo de 10 minutos e
+#     sono de 15, ha folga para um atraso ocasional -- mas nao para uma pausa
+#     longa.
+#   - o GitHub DESATIVA workflows agendados depois de 60 dias sem commit no
+#     repositorio. Um repositorio parado simplesmente para de pingar, sem
+#     avisar. Reative no painel de Actions, ou use o cron-job.org como reforco
+#     (passo a passo em DEPLOY.md).
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  # Para testar sem esperar os 10 minutos.
+  workflow_dispatch:
+
+# Duas execucoes ao mesmo tempo nao ajudam em nada.
+concurrency:
+  group: manter-acordado
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    # Se o Render demorar a acordar, o job nao fica preso ocupando minuto.
+    timeout-minutes: 5
+
+    steps:
+      - name: Bater em /ping
+        env:
+          # Variavel do repositorio (Settings > Secrets and variables >
+          # Actions > Variables), nao segredo: a URL e publica.
+          # Ex.: https://stewer-agenda-api.onrender.com
+          URL_DA_API: ${{ vars.URL_DA_API }}
+        run: |
+          if [ -z "$URL_DA_API" ]; then
+            # Enquanto a API nao existe, sair em silencio e o certo: um
+            # workflow vermelho todo dia vira ruido que ninguem mais le, e a
+            # unica acao possivel e criar a variavel.
+            echo "A variavel URL_DA_API ainda nao foi criada; nada a fazer."
+            echo "Crie em Settings > Secrets and variables > Actions > Variables."
+            echo "### Ping nao executado" >> "$GITHUB_STEP_SUMMARY"
+            echo "A variavel \`URL_DA_API\` ainda nao existe." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          alvo="${URL_DA_API%/}/ping"
+          echo "Chamando $alvo"
+
+          # --max-time 90: a instancia pode estar dormindo e levar ~1 min.
+          # --retry cobre o caso de a primeira tentativa cair no meio do
+          # acordar, que e exatamente quando o Render devolve 502.
+          codigo=$(curl --silent --show-error --location \
+                        --max-time 90 \
+                        --retry 3 --retry-delay 15 --retry-all-errors \
+                        --output /tmp/resposta.txt \
+                        --write-out '%{http_code}' \
+                        "$alvo") || true
+
+          corpo=$(head -c 200 /tmp/resposta.txt 2>/dev/null || true)
+          echo "HTTP $codigo — $corpo"
+
+          {
+            echo "### Ping"
+            echo ""
+            echo "- alvo: \`$alvo\`"
+            echo "- resposta: \`$codigo\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$codigo" != "200" ]; then
+            echo "::error::A API nao respondeu 200 em /ping (veio $codigo)."
+            exit 1
+          fi
