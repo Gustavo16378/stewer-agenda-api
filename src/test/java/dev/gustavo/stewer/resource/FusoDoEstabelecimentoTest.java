@@ -1,7 +1,6 @@
 package dev.gustavo.stewer.resource;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -168,7 +167,9 @@ class FusoDoEstabelecimentoTest {
                 .when().get("/agendamentos/agenda")
                 .then().statusCode(200)
                 .body("", hasSize(1))
-                .body("[0].inicio", equalTo(isoLocal(DIA, "22:00")));
+                // O instante vem do banco (timestamptz), entao o Jackson o escreve
+                // em UTC. O que importa e ser o MESMO instante das 22:00 locais.
+                .body("[0].inicio", equalTo(isoUtc(local(DIA, "22:00"))));
 
         given()
                 .header("Authorization", "Bearer " + tokenProfissional)
@@ -203,6 +204,12 @@ class FusoDoEstabelecimentoTest {
     /** O instante correspondente a uma hora de PAREDE do estabelecimento. */
     private static OffsetDateTime local(LocalDate data, String hora) {
         return data.atTime(LocalTime.parse(hora)).atZone(FUSO).toOffsetDateTime();
+    }
+
+    /** O mesmo instante escrito em UTC, como sai de uma coluna timestamptz. */
+    private static String isoUtc(OffsetDateTime instante) {
+        return instante.withOffsetSameInstant(ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
     }
 
     /** Como o Jackson serializa esse mesmo instante (offset do estabelecimento). */

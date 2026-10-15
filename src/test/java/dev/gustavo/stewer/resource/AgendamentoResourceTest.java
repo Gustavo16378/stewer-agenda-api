@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
@@ -54,13 +55,17 @@ import org.junit.jupiter.api.Test;
 @DisplayName("/agendamentos -- reservas, agenda do dia e mudanca de status")
 class AgendamentoResourceTest {
 
+
+    /** Fuso do estabelecimento: a grade e hora de parede, nao hora UTC. */
+    private static final ZoneId FUSO = ZoneId.of("America/Araguaina");
+
     /** Segunda-feira futura: deterministica e imune a regra do "horario no passado". */
-    private static final LocalDate DIA = LocalDate.now(ZoneOffset.UTC)
+    private static final LocalDate DIA = LocalDate.now(FUSO)
             .plusMonths(1)
             .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
 
     /** Segunda-feira que ja passou, para os casos de historico e de 422. */
-    private static final LocalDate DIA_PASSADO = LocalDate.now(ZoneOffset.UTC)
+    private static final LocalDate DIA_PASSADO = LocalDate.now(FUSO)
             .minusMonths(1)
             .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
 
@@ -645,7 +650,10 @@ class AgendamentoResourceTest {
     @Test
     @DisplayName("cancelar devolve o slot para a lista de horarios livres")
     void cancelamentoDevolveOSlotParaHorariosLivres() {
-        OffsetDateTime slot = em(DIA, "10:00");
+        // Normalizado em UTC igual a horariosLivres(): OffsetDateTime.equals compara
+        // tambem o offset, entao 10:00-03:00 e 13:00Z nao sao "iguais" apesar de
+        // serem o mesmo instante.
+        OffsetDateTime slot = em(DIA, "10:00").withOffsetSameInstant(ZoneOffset.UTC);
 
         // Grade 09:00-19:00 fatiada de hora em hora: 09, 10, ... 18.
         List<OffsetDateTime> antes = horariosLivres();
@@ -730,8 +738,9 @@ class AgendamentoResourceTest {
                 "inicio", inicio.toString());
     }
 
+    /** Hora de parede do estabelecimento -> instante. */
     private static OffsetDateTime em(LocalDate data, String hora) {
-        return data.atTime(LocalTime.parse(hora)).atOffset(ZoneOffset.UTC);
+        return data.atTime(LocalTime.parse(hora)).atZone(FUSO).toOffsetDateTime();
     }
 
     private static Instant instante(String iso) {

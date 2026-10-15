@@ -2,6 +2,7 @@ package dev.gustavo.stewer.service;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -151,8 +152,12 @@ public class AgendamentoService {
             UUID profissionalIdParam) {
         UUID alvo = resolverProfissionalDaAgenda(tenantId, profissionalIdParam);
 
-        OffsetDateTime inicioDoDia = data.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime fimDoDia = inicioDoDia.plusDays(1);
+        // O dia comeca e termina no relogio do estabelecimento, nao em UTC: um
+        // atendimento as 22:00 de Palmas e 01:00Z do dia seguinte e pertence a
+        // agenda de ontem, nao a de hoje.
+        ZoneId fuso = horariosLivresService.fusoDo(tenantId);
+        OffsetDateTime inicioDoDia = data.atStartOfDay(fuso).toOffsetDateTime();
+        OffsetDateTime fimDoDia = data.plusDays(1).atStartOfDay(fuso).toOffsetDateTime();
 
         return AgendamentoMapper.paraResponses(
                 agendamentoRepository.doProfissionalNaJanela(tenantId, alvo, inicioDoDia, fimDoDia));
@@ -235,7 +240,10 @@ public class AgendamentoService {
     }
 
     private boolean temBloqueio(UUID tenantId, UUID profissionalId, Janela pedido) {
-        LocalDate dia = pedido.inicio().toLocalDate();
+        // O dia das ocupacoes e o dia do calendario do estabelecimento.
+        LocalDate dia = pedido.inicio()
+                .atZoneSameInstant(horariosLivresService.fusoDo(tenantId))
+                .toLocalDate();
         return horariosLivresService.ocupacoesDoDia(tenantId, profissionalId, dia).stream()
                 .anyMatch(pedido::colideCom)
                 // ocupacoesDoDia junta bloqueios e agendamentos; separar aqui daria

@@ -3,6 +3,7 @@ package dev.gustavo.stewer.service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,9 +50,15 @@ import jakarta.transaction.Transactional;
  * divergir, aparece slot fantasma.
  *
  * <p><strong>Fuso:</strong> a grade semanal e guardada como hora do dia
- * ({@code LocalTime}) e interpretada em UTC. Enquanto for um estabelecimento so,
- * isso e uma simplificacao honesta; quando existir tenant em outro fuso, o
- * lugar de mexer e {@link #inicioDaFaixa} / {@link #fimDaFaixa} e mais nada.
+ * ({@code LocalTime}) e interpretada no fuso do ESTABELECIMENTO
+ * ({@code tenant.fuso}, ex.: {@code America/Araguaina}). "09:00" quer dizer
+ * nove da manha no relogio de quem atende, em qualquer epoca do ano -- o
+ * {@code ZoneId} resolve o offset correto para cada data. O mesmo fuso define
+ * onde comeca e termina o dia de calendario pedido em {@code ?data=}.
+ *
+ * <p>Instantes ({@code Agendamento.inicio}, {@code Bloqueio.inicio}) continuam
+ * absolutos e nao passam por conversao nenhuma: so a hora de parede precisa de
+ * fuso para virar instante.
  */
 @ApplicationScoped
 public class HorariosLivresService {
@@ -70,6 +77,9 @@ public class HorariosLivresService {
 
     @Inject
     AgendamentoRepository agendamentoRepository;
+
+    @Inject
+    TenantService tenantService;
 
     /**
      * Intervalo meio-aberto usado nos calculos internos.
@@ -120,14 +130,16 @@ public class HorariosLivresService {
             return List.of();
         }
 
+        ZoneId fuso = fusoDo(tenantId);
         List<Janela> ocupacoes = ocupacoesDoDia(tenantId, profissionalId, data);
         // Slot que ja passou nao serve para ninguem reservar; so importa quando
         // a data pedida e hoje, entao a comparacao e feita uma vez so.
+        // "Agora" e um instante: nao depende de fuso nenhum.
         OffsetDateTime agora = OffsetDateTime.now(ZoneOffset.UTC);
 
         List<Janela> livres = new ArrayList<>();
         for (Disponibilidade faixa : faixas) {
-            fatiar(new Janela(inicioDaFaixa(data, faixa), fimDaFaixa(data, faixa)),
+            fatiar(new Janela(inicioDaFaixa(data, faixa, fuso), fimDaFaixa(data, faixa, fuso)),
                     duracao, ocupacoes, agora, livres);
         }
         livres.sort(Comparator.comparing(Janela::inicio));
@@ -136,13 +148,14 @@ public class HorariosLivresService {
 
     /**
      * Tudo que impede um atendimento no dia: bloqueios pontuais e agendamentos
-     * que ocupam a agenda. A janela consultada e o dia inteiro em UTC, e nao
-     * apenas o horario da grade, porque um bloqueio pode comecar na vespera e
-     * invadir a manha seguinte.
+     * que ocupam a agenda. A janela consultada e o dia inteiro no fuso do
+     * ESTABELECIMENTO, e nao apenas o horario da grade, porque um bloqueio pode
+     * comecar na vespera e invadir a manha seguinte.
      */
     public List<Janela> ocupacoesDoDia(UUID tenantId, UUID profissionalId, LocalDate data) {
-        OffsetDateTime inicioDoDia = data.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime fimDoDia = inicioDoDia.plusDays(1);
+        ZoneId fuso = fusoDo(tenantId);
+        OffsetDateTime inicioDoDia = data.atStartOfDay(fuso).toOffsetDateTime();
+        OffsetDateTime fimDoDia = data.plusDays(1).atStartOfDay(fuso).toOffsetDateTime();
 
         List<Janela> ocupacoes = new ArrayList<>();
         for (Bloqueio bloqueio : bloqueioRepository.naJanela(tenantId, profissionalId,
@@ -159,15 +172,25 @@ public class HorariosLivresService {
     /**
      * Verifica se um intervalo cabe na grade do dia. Usado pelo agendamento para
      * recusar horario fora do expediente sem precisar montar a lista de slots.
+     *
+     * <p>O dia e o dia da semana saem do calendario do ESTABELECIMENTO: um
+     * atendimento as 22:00 de segunda em Palmas chega como 01:00Z de terca, e
+     * lido em UTC bateria contra a grade do dia errado.
      */
     public boolean cabeNaGrade(UUID tenantId, UUID profissionalId, Janela pedido) {
-        short diaSemana = Disponibilidade.toDiaSemana(
-                pedido.inicio().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().getDayOfWeek());
-        LocalDate dia = pedido.inicio().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+        ZoneId fuso = fusoDo(tenantId);
+        LocalDate dia = pedido.inicio().atZoneSameInstant(fuso).toLocalDate();
+        short diaSemana = Disponibilidade.toDiaSemana(dia.getDayOfWeek());
 
         return disponibilidadeRepository.doDia(tenantId, profissionalId, diaSemana).stream()
-                .map(faixa -> new Janela(inicioDaFaixa(dia, faixa), fimDaFaixa(dia, faixa)))
+                .map(faixa -> new Janela(inicioDaFaixa(dia, faixa, fuso),
+                        fimDaFaixa(dia, faixa, fuso)))
                 .anyMatch(faixa -> faixa.contem(pedido));
+    }
+
+    /** O fuso em que a hora de parede deste estabelecimento deve ser lida. */
+    public ZoneId fusoDo(UUID tenantId) {
+        return tenantService.porId(tenantId).zoneId();
     }
 
     /**
@@ -195,12 +218,20 @@ public class HorariosLivresService {
         }
     }
 
-    private static OffsetDateTime inicioDaFaixa(LocalDate data, Disponibilidade faixa) {
-        return data.atTime(faixa.getHoraInicio()).atOffset(ZoneOffset.UTC);
+    /**
+     * Hora de parede da grade -> instante, no fuso do estabelecimento.
+     *
+     * <p>{@code atZone} (e nao {@code atOffset}) de proposito: o offset de um
+     * fuso muda com a data quando existe horario de verao, e so o {@code ZoneId}
+     * sabe qual vale naquele dia.
+     */
+    private static OffsetDateTime inicioDaFaixa(LocalDate data, Disponibilidade faixa,
+            ZoneId fuso) {
+        return data.atTime(faixa.getHoraInicio()).atZone(fuso).toOffsetDateTime();
     }
 
-    private static OffsetDateTime fimDaFaixa(LocalDate data, Disponibilidade faixa) {
-        return data.atTime(faixa.getHoraFim()).atOffset(ZoneOffset.UTC);
+    private static OffsetDateTime fimDaFaixa(LocalDate data, Disponibilidade faixa, ZoneId fuso) {
+        return data.atTime(faixa.getHoraFim()).atZone(fuso).toOffsetDateTime();
     }
 
     Profissional exigirProfissionalAtivo(UUID tenantId, UUID profissionalId) {

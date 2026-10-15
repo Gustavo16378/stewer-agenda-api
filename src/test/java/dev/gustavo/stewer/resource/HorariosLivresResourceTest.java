@@ -9,6 +9,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Map;
@@ -40,8 +41,12 @@ import org.junit.jupiter.api.Test;
 @DisplayName("GET /profissionais/{id}/horarios-livres")
 class HorariosLivresResourceTest {
 
+
+    /** Fuso do estabelecimento: a grade e hora de parede, nao hora UTC. */
+    private static final ZoneId FUSO = ZoneId.of("America/Araguaina");
+
     /** Segunda-feira futura: deterministica e imune a regra do "slot no passado". */
-    private static final LocalDate DIA = LocalDate.now(ZoneOffset.UTC)
+    private static final LocalDate DIA = LocalDate.now(FUSO)
             .plusMonths(1)
             .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
 
@@ -303,12 +308,13 @@ class HorariosLivresResourceTest {
                 .extract().path("token");
     }
 
+    /** Hora de parede do estabelecimento -> instante. */
     private static OffsetDateTime em(LocalDate data, String hora) {
-        return data.atTime(LocalTime.parse(hora)).atOffset(ZoneOffset.UTC);
+        return data.atTime(LocalTime.parse(hora)).atZone(FUSO).toOffsetDateTime();
     }
 
-    /** Mesma serializacao que o Jackson produz para OffsetDateTime em UTC. */
+    /** Mesma serializacao que o Jackson produz para o instante dessa hora local. */
     private static String iso(LocalDate data, String hora) {
-        return data + "T" + hora + ":00Z";
+        return data + "T" + hora + ":00" + em(data, hora).getOffset().getId();
     }
 }

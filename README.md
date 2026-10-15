@@ -259,6 +259,14 @@ Dia sem grade devolve `200` com lista vazia — não `404`.
 - **IDs são UUID**, gerados pela aplicação.
 - **Timestamps em UTC** (`timestamptz`). Instantes usam `OffsetDateTime`; hora do dia da grade
   semanal usa `time` / `LocalTime`.
+- **A hora de parede da grade é lida no fuso do estabelecimento** (`tenant.fuso`, padrão
+  `America/Araguaina` — o estúdio fica em Palmas, TO). `09:00` quer dizer nove da manhã no
+  relógio de quem atende, em qualquer época do ano. O mesmo fuso define onde começa e termina o
+  dia de calendário pedido em `?data=`.
+  > `America/Araguaina` e **não** `America/Sao_Paulo`: se o horário de verão brasileiro voltar,
+  > só São Paulo muda de offset, e a agenda de Palmas sairia uma hora errada metade do ano.
+  > Quem converte é `ZoneId` (nunca um offset fixo), porque só ele sabe qual offset vale em
+  > cada data. `FusoDoEstabelecimentoTest` trava essa regra.
   > Nao ative `quarkus.hibernate-orm.jdbc.timezone=UTC`. Ele faz o driver converter as colunas
   > `time` pelo fuso da JVM: a grade gravada como 09:00 volta como 06:00 numa maquina em UTC-3,
   > e todos os horarios oferecidos ao cliente saem errados. Os instantes ja sao `timestamptz`
@@ -274,14 +282,16 @@ O seed de dev é `db/seed/V2__seed_dev.sql`. Ele fica num diretório **irmão** 
 (e não dentro dele) porque `quarkus.flyway.locations` é resolvido em tempo de build e o scan é
 recursivo — aninhado, ele vazaria para produção.
 
-Consequência: **a próxima migration de negócio deve ser `V3`**. Se alguém criar
+Consequência: nenhuma migration de negócio pode se chamar `V2`. Se alguém criar
 `db/migration/V2__…`, o profile dev passa a enxergar duas migrations com versão 2 e o Flyway
-aborta com `Found more than one migration with version 2`.
+aborta com `Found more than one migration with version 2`. A numeração de negócio já seguiu
+para `V3`; a próxima é `V4`.
 
 ```
 src/main/resources/db/
 ├── migration/            <- todos os profiles (vai para o jar de prod)
-│   └── V1__init_schema.sql
+│   ├── V1__init_schema.sql
+│   └── V3__fuso_do_estabelecimento.sql
 └── seed/                 <- SÓ dev
     └── V2__seed_dev.sql
 ```

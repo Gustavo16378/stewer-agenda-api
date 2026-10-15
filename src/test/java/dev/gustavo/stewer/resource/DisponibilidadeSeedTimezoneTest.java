@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Map;
@@ -44,7 +45,10 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Grade gravada por SQL cru mantem a hora de parede")
 class DisponibilidadeSeedTimezoneTest {
 
-    private static final LocalDate DIA = LocalDate.now(ZoneOffset.UTC)
+    /** Fuso do estabelecimento: a grade e hora de parede, nao hora UTC. */
+    private static final ZoneId FUSO = ZoneId.of("America/Araguaina");
+
+    private static final LocalDate DIA = LocalDate.now(FUSO)
             .plusMonths(1)
             .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
 
@@ -81,7 +85,7 @@ class DisponibilidadeSeedTimezoneTest {
     }
 
     @Test
-    @DisplayName("grade 09:00-12:00 inserida por SQL gera slots 09:00, 10:00 e 11:00 em UTC")
+    @DisplayName("grade 09:00-12:00 inserida por SQL gera slots 09:00, 10:00 e 11:00 locais")
     void gradeInseridaPorSqlNaoSofreDeslocamento() {
         inserirGradeViaSql("09:00", "12:00");
 
@@ -93,7 +97,7 @@ class DisponibilidadeSeedTimezoneTest {
                 .statusCode(200)
                 .body("horarios", hasSize(3))
                 .body("horarios.inicio", contains(
-                        DIA + "T09:00:00Z", DIA + "T10:00:00Z", DIA + "T11:00:00Z"));
+                        iso("09:00"), iso("10:00"), iso("11:00")));
     }
 
     @Test
@@ -109,6 +113,13 @@ class DisponibilidadeSeedTimezoneTest {
                 .body("[0].diaSemana", equalTo(DIA_SEMANA))
                 .body("[0].horaInicio", org.hamcrest.Matchers.startsWith("09:00"))
                 .body("[0].horaFim", org.hamcrest.Matchers.startsWith("19:00"));
+    }
+
+    /** O instante daquela hora de parede, como o Jackson o escreve. */
+    private static String iso(String hora) {
+        java.time.OffsetDateTime instante =
+                DIA.atTime(java.time.LocalTime.parse(hora)).atZone(FUSO).toOffsetDateTime();
+        return DIA + "T" + hora + ":00" + instante.getOffset().getId();
     }
 
     /** Mesma forma de insercao usada pela migration V2 do seed de dev. */
