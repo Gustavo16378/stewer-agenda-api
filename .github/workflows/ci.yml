@@ -68,6 +68,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # O driver padrao do Docker nao exporta cache ("Cache export is not
+      # supported for the docker driver"). O buildx com o driver
+      # docker-container resolve, e e o que permite reaproveitar as camadas
+      # entre execucoes.
+      - name: Preparar o buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Monta a imagem de producao
         # Sem push: o objetivo e descobrir Dockerfile quebrado no PR, e nao no
         # deploy. O Render faz o build dele a partir do mesmo arquivo.
