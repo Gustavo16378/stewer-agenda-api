@@ -1,5 +1,21 @@
-*
-!target/*-runner
-!target/*-runner.jar
-!target/lib/*
-!target/quarkus-app/*
+# O build acontece dentro da imagem, entao o contexto precisa do fonte --
+# mas nao de nada que o Docker recrie, baixe ou que nao possa sair daqui.
+
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+
+# Segredo nunca entra em imagem. .env.example fica de fora junto: o build
+# nao le nenhum dos dois.
+.env
+.env.*
+
+# Documentacao nao muda o binario, e mexer nela invalidaria a camada de build.
+*.md
+docs/
+
+# O compose e so para desenvolvimento local.
+docker-compose.yml
