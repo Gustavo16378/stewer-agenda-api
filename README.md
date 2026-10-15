@@ -244,6 +244,17 @@ cálculo é:
 Sobreposição usa intervalo meio-aberto (`a.inicio < b.fim && a.fim > b.inicio`): um
 atendimento que termina 10:00 e outro que começa 10:00 **não** conflitam.
 
+Essa regra não vive só no código. A migration `V4` cria uma restrição `EXCLUDE USING gist`
+sobre `(profissional_id, tstzrange(inicio, fim))`, válida para os `AGENDADO` vivos: duas
+reservas sobrepostas são impossíveis por construção, independente de ordem de execução, de
+quantas instâncias da API estejam no ar e do nível de isolamento. O serviço continua checando
+antes (para responder 409 sem ir ao banco no caso comum) e traduz a violação da restrição
+(`SQLSTATE 23P01`) para o mesmo `409 HORARIO_OCUPADO`.
+
+> A restrição exige a extensão `btree_gist`, criada pela própria migration. Se o usuário do
+> banco de produção não puder criar extensão, peça ao provedor `CREATE EXTENSION btree_gist`
+> antes do primeiro deploy — sem ela a migration falha e a API não sobe.
+
 Dia sem grade devolve `200` com lista vazia — não `404`.
 
 ---
@@ -285,13 +296,14 @@ recursivo — aninhado, ele vazaria para produção.
 Consequência: nenhuma migration de negócio pode se chamar `V2`. Se alguém criar
 `db/migration/V2__…`, o profile dev passa a enxergar duas migrations com versão 2 e o Flyway
 aborta com `Found more than one migration with version 2`. A numeração de negócio já seguiu
-para `V3`; a próxima é `V4`.
+para `V4`; a próxima é `V5`.
 
 ```
 src/main/resources/db/
 ├── migration/            <- todos os profiles (vai para o jar de prod)
 │   ├── V1__init_schema.sql
-│   └── V3__fuso_do_estabelecimento.sql
+│   ├── V3__fuso_do_estabelecimento.sql
+│   └── V4__agendamento_sem_sobreposicao.sql
 └── seed/                 <- SÓ dev
     └── V2__seed_dev.sql
 ```

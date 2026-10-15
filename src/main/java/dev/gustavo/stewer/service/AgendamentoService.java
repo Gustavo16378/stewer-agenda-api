@@ -1,5 +1,6 @@
 package dev.gustavo.stewer.service;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -57,6 +58,12 @@ public class AgendamentoService {
             }
         }
     }
+
+    /** PostgreSQL: violacao de restricao EXCLUDE. */
+    private static final String SQLSTATE_EXCLUSION_VIOLATION = "23P01";
+
+    /** Nome da restricao criada pela migration V4. */
+    private static final String CONSTRAINT_SEM_SOBREPOSICAO = "ux_agendamento_sem_sobreposicao";
 
     @Inject
     AgendamentoRepository agendamentoRepository;
@@ -122,9 +129,45 @@ public class AgendamentoService {
         agendamento.setObservacao(normalizar(dto.observacao()));
 
         // Flush para que id e createdAt ja existam ao montar o 201 e o Location.
-        agendamentoRepository.persistAndFlush(agendamento);
+        //
+        // A checagem la em cima resolve o caso comum e devolve 409 sem ir ao
+        // banco. Mas entre ela e este insert cabe a transacao de outro cliente:
+        // em READ COMMITTED nenhuma das duas enxerga a outra. Quem fecha a porta
+        // e a restricao EXCLUDE (V4); aqui so traduzimos a violacao dela para o
+        // mesmo 409 que o caminho feliz ja devolve.
+        try {
+            agendamentoRepository.persistAndFlush(agendamento);
+        } catch (RuntimeException e) {
+            if (ehSobreposicaoNoBanco(e)) {
+                throw new ConflitoException("HORARIO_OCUPADO",
+                        "Ja existe um agendamento neste horario");
+            }
+            throw e;
+        }
 
         return AgendamentoMapper.paraResponse(agendamento);
+    }
+
+    /**
+     * A excecao veio da restricao que impede dois atendimentos sobrepostos?
+     *
+     * <p>Olha o SQLSTATE {@code 23P01} (exclusion_violation) em vez do texto da
+     * mensagem, que muda com a versao e com o idioma do servidor. O nome da
+     * constraint entra como segunda pista para nao confundir com alguma outra
+     * restricao de exclusao que venha a existir.
+     */
+    private static boolean ehSobreposicaoNoBanco(Throwable erro) {
+        for (Throwable causa = erro; causa != null; causa = causa.getCause()) {
+            if (causa instanceof SQLException sql
+                    && SQLSTATE_EXCLUSION_VIOLATION.equals(sql.getSQLState())) {
+                return true;
+            }
+            String mensagem = causa.getMessage();
+            if (mensagem != null && mensagem.contains(CONSTRAINT_SEM_SOBREPOSICAO)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Agendamentos do proprio cliente logado. */
