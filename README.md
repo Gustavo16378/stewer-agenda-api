@@ -315,7 +315,7 @@ Veja `.env.example`. As que importam:
 | `DATABASE_URL` | URL **JDBC**: `jdbc:postgresql://host:5432/banco` |
 | `DATABASE_USERNAME` | usuário do banco |
 | `DATABASE_PASSWORD` | senha do banco |
-| `JWT_SECRET` | segredo HMAC. Gere com `openssl rand -base64 48` |
+| `JWT_SECRET` | segredo HMAC. **Obrigatória em produção, sem valor padrão.** Gere com `openssl rand -base64 48` |
 | `JWT_ISSUER` | emissor gravado em `iss` (default `https://stewer-agenda-api`) |
 | `JWT_EXPIRACAO_SEGUNDOS` | validade do token (default `28800` = 8h) |
 | `TENANT_SLUG_PADRAO` | slug usado quando o cliente não informa (default `stewer-gabriel`) |
@@ -329,6 +329,27 @@ postgresql://u:s@host:5432/db   ->   jdbc:postgresql://host:5432/db
                                      DATABASE_USERNAME=u
                                      DATABASE_PASSWORD=s
 ```
+
+### O segredo do JWT
+
+Gere o seu e injete em `JWT_SECRET`:
+
+```bash
+openssl rand -base64 48
+```
+
+**Produção não tem valor padrão.** Se a variável faltar, tiver menos de 32 bytes (o mínimo do
+HS256) ou for um dos valores de exemplo que estão neste repositório, a API **recusa subir** e
+diz qual é o problema. Isso é deliberado: o repositório é público, e um default silencioso
+deixaria qualquer leitor forjar um token com `groups:["ADMIN"]` e o `tenantId` do estúdio.
+
+Dev e teste têm cada um o seu default no `application.properties`. São públicos também — só
+assinam token contra um banco local descartável — e a mesma validação os rejeita em produção.
+
+> O segredo usado antes de outubro de 2026 vazou no histórico público e está **banido em
+> qualquer profile**. Se você tinha um ambiente apontando para ele, gere outro.
+
+Trocar o segredo invalida todos os tokens já emitidos: todo mundo precisa entrar de novo.
 
 `JWT_SECRET` aceita qualquer string. O SmallRye JWT, por baixo, só entende chave simétrica no
 formato JWK — quem faz essa ponte é `JwtSecretConfigInterceptor`, que converte o segredo em

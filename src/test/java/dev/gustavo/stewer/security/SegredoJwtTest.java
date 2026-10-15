@@ -1,6 +1,8 @@
 package dev.gustavo.stewer.security;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -81,6 +83,63 @@ class SegredoJwtTest {
                 ".env.example ainda repete o segredo comprometido");
         assertTrue(texto.contains("openssl rand"),
                 ".env.example precisa ensinar a gerar o segredo de producao");
+    }
+
+    // ------------------------------------------------------------------
+    // O validador que derruba o boot
+    // ------------------------------------------------------------------
+
+    /** 48 bytes aleatorios em base64, como o README manda gerar. */
+    private static final String SEGREDO_BOM =
+            "Qk9NLXNlZ3JlZG8tZGUtNDgtYnl0ZXMtcGFyYS1vLXRlc3RlLWRvLXZhbGlkYWRvcg==";
+
+    @Test
+    @DisplayName("segredo ausente derruba o boot dizendo que a variavel faltou")
+    void segredoAusenteDerrubaOBoot() {
+        for (String vazio : new String[] { null, "", "   " }) {
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> TokenService.validarSegredo(vazio, true));
+            assertTrue(e.getMessage().contains("JWT_SECRET nao esta definida"),
+                    "mensagem precisa dizer qual variavel faltou: " + e.getMessage());
+            assertTrue(e.getMessage().contains("openssl rand"),
+                    "mensagem precisa dizer como gerar: " + e.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("segredo com menos de 32 bytes derruba o boot")
+    void segredoCurtoDerrubaOBoot() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> TokenService.validarSegredo("curto-demais", true));
+        assertTrue(e.getMessage().contains("32"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("o segredo vazado e recusado ate fora de producao")
+    void segredoComprometidoRecusadoEmQualquerProfile() {
+        for (boolean producao : new boolean[] { true, false }) {
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> TokenService.validarSegredo(SEGREDO_COMPROMETIDO, producao));
+            assertTrue(e.getMessage().contains("vazou"), e.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("default de dev serve em dev e e recusado em producao")
+    void defaultDeDevNaoAlcancaProducao() {
+        String defaultDeDev = "D6w42/Ajia/d6expDVc90K3JNR9PiMDBf1WFPfPQBFN+pKCqGNGybRArbc1YpELg";
+
+        assertDoesNotThrow(() -> TokenService.validarSegredo(defaultDeDev, false));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> TokenService.validarSegredo(defaultDeDev, true));
+        assertTrue(e.getMessage().contains("repositorio publico"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("segredo proprio de 48 bytes passa em producao")
+    void segredoProprioPassa() {
+        assertDoesNotThrow(() -> TokenService.validarSegredo(SEGREDO_BOM, true));
     }
 
     // ------------------------------------------------------------------
