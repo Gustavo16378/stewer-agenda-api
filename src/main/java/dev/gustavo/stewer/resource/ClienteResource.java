@@ -21,6 +21,7 @@ import dev.gustavo.stewer.service.ClienteService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
@@ -92,7 +93,7 @@ public class ClienteResource {
             @APIResponse(responseCode = "404", description = "Cliente inexistente no estabelecimento"),
             @APIResponse(responseCode = "422", description = "Autor sem ficha de profissional ou agendamento invalido")
     })
-    public Response criarAnotacao(@PathParam("id") UUID id, @Valid AnotacaoRequest dto,
+    public Response criarAnotacao(@PathParam("id") UUID id, @Valid @NotNull(message = "corpo da requisicao e obrigatorio") AnotacaoRequest dto,
             @Context UriInfo uriInfo) {
         AnotacaoResponse criada = clienteService.criarAnotacao(
                 usuarioLogado.tenantId(), usuarioLogado.usuarioId(), id, dto);

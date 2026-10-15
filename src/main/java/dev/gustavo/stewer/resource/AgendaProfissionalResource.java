@@ -22,6 +22,7 @@ import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -79,7 +80,7 @@ public class AgendaProfissionalResource {
     })
     public List<DisponibilidadeResponse> substituirGrade(
             @PathParam("profissionalId") UUID profissionalId,
-            @Valid GradeSemanalRequest dto) {
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") GradeSemanalRequest dto) {
         return disponibilidadeService.substituirGrade(usuarioLogado.tenantId(), profissionalId, dto);
     }
 
@@ -95,7 +96,7 @@ public class AgendaProfissionalResource {
             @APIResponse(responseCode = "422", description = "Fim do bloqueio anterior ou igual ao inicio")
     })
     public Response criarBloqueio(@PathParam("profissionalId") UUID profissionalId,
-            @Valid BloqueioRequest dto) {
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") BloqueioRequest dto) {
         BloqueioResponse criado =
                 disponibilidadeService.criarBloqueio(usuarioLogado.tenantId(), profissionalId, dto);
         return Response

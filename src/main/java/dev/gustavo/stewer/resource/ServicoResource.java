@@ -21,6 +21,7 @@ import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -84,7 +85,7 @@ public class ServicoResource {
             @APIResponse(responseCode = "403", description = "Somente ADMIN gerencia o catalogo"),
             @APIResponse(responseCode = "409", description = "Ja existe servico com este nome")
     })
-    public Response criar(@Valid ServicoRequest dto, @Context UriInfo uriInfo) {
+    public Response criar(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") ServicoRequest dto, @Context UriInfo uriInfo) {
         ServicoResponse criado = servicoService.criar(usuarioLogado.tenantId(), dto);
         URI local = uriInfo.getAbsolutePathBuilder().path(criado.id().toString()).build();
         return Response.created(local).entity(criado).build();
@@ -101,7 +102,7 @@ public class ServicoResource {
             @APIResponse(responseCode = "404", description = "Servico inexistente ou removido"),
             @APIResponse(responseCode = "409", description = "Ja existe servico com este nome")
     })
-    public ServicoResponse atualizar(@PathParam("id") UUID id, @Valid ServicoRequest dto) {
+    public ServicoResponse atualizar(@PathParam("id") UUID id, @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ServicoRequest dto) {
         return servicoService.atualizar(usuarioLogado.tenantId(), id, dto);
     }
 

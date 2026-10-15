@@ -21,6 +21,7 @@ import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
@@ -81,7 +82,7 @@ public class ProfissionalResource {
             @APIResponse(responseCode = "404", description = "Usuario informado nao existe no estabelecimento"),
             @APIResponse(responseCode = "409", description = "O usuario ja e profissional")
     })
-    public Response criar(@Valid ProfissionalRequest dto) {
+    public Response criar(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") ProfissionalRequest dto) {
         ProfissionalResponse criado = profissionalService.criar(usuarioLogado.tenantId(), dto);
         return Response.created(URI.create("/profissionais/" + criado.id()))
                 .entity(criado)
@@ -98,7 +99,7 @@ public class ProfissionalResource {
             @APIResponse(responseCode = "404", description = "Profissional inexistente ou removido"),
             @APIResponse(responseCode = "422", description = "Tentativa de trocar o usuario da ficha")
     })
-    public ProfissionalResponse atualizar(@PathParam("id") UUID id, @Valid ProfissionalRequest dto) {
+    public ProfissionalResponse atualizar(@PathParam("id") UUID id, @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ProfissionalRequest dto) {
         return profissionalService.atualizar(usuarioLogado.tenantId(), id, dto);
     }
 

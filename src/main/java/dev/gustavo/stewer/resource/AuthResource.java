@@ -17,6 +17,7 @@ import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -45,7 +46,7 @@ public class AuthResource {
             @APIResponse(responseCode = "201", description = "Conta criada"),
             @APIResponse(responseCode = "409", description = "E-mail ja cadastrado no estabelecimento")
     })
-    public Response registrar(@Valid RegistrarRequest dto) {
+    public Response registrar(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") RegistrarRequest dto) {
         TokenResponse resposta = authService.registrar(dto);
         return Response.status(Response.Status.CREATED).entity(resposta).build();
     }
@@ -67,7 +68,7 @@ public class AuthResource {
             @APIResponse(responseCode = "200", description = "Autenticado"),
             @APIResponse(responseCode = "401", description = "E-mail ou senha invalidos")
     })
-    public TokenResponse login(@Valid LoginRequest dto) {
+    public TokenResponse login(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") LoginRequest dto) {
         return authService.login(dto);
     }
 }

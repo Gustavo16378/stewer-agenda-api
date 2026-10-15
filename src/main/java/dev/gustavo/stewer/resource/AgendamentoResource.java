@@ -57,7 +57,7 @@ public class AgendamentoResource {
             @APIResponse(responseCode = "409", description = "Horario ocupado ou bloqueado"),
             @APIResponse(responseCode = "422", description = "Horario no passado ou fora da grade")
     })
-    public Response criar(@Valid AgendamentoRequest dto) {
+    public Response criar(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") AgendamentoRequest dto) {
         AgendamentoResponse criado = agendamentoService.criar(
                 usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
         return Response.created(URI.create("/agendamentos/" + criado.id()))
@@ -109,7 +109,7 @@ public class AgendamentoResource {
             @APIResponse(responseCode = "409", description = "Agendamento ja esta num status final")
     })
     public AgendamentoResponse atualizarStatus(@PathParam("id") UUID id,
-            @Valid AtualizarStatusRequest dto) {
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") AtualizarStatusRequest dto) {
         return agendamentoService.atualizarStatus(usuarioLogado.tenantId(), id, dto.status());
     }
 }
