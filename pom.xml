@@ -47,6 +47,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
+        <!-- /q/health, /q/health/live e /q/health/ready. O check do datasource vem
+             junto com o agroal: readiness so fica UP com o banco acessivel, entao
+             o orquestrador nao manda trafego antes da hora. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-jackson</artifactId>

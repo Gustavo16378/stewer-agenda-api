@@ -82,6 +82,7 @@ No boot o Flyway aplica `V1` (schema) e `V2` (seed de desenvolvimento). A API so
 | Swagger UI | http://localhost:8080/q/swagger-ui |
 | OpenAPI (JSON) | http://localhost:8080/q/openapi?format=json |
 | Dev UI do Quarkus | http://localhost:8080/q/dev |
+| Health check | http://localhost:8080/q/health |
 
 ### 3. Rodar os testes
 
@@ -342,6 +343,8 @@ Veja `.env.example`. As que importam:
 | `BOOTSTRAP_TENANT_FUSO` | fuso IANA da grade (default `America/Araguaina`) |
 | `BOOTSTRAP_ADMIN_EMAIL` | e-mail do admin inicial — opcional |
 | `BOOTSTRAP_ADMIN_SENHA` | senha dele, mínimo 8 caracteres. Obrigatória se o e-mail estiver definido |
+| `CORS_HABILITADO` | `true` para ligar CORS (default `false`) |
+| `CORS_ORIGINS` | origens permitidas, separadas por vírgula. Obrigatória se CORS estiver ligado |
 | `PORT` | porta HTTP — o Railway injeta sozinho |
 
 O Railway costuma expor `DATABASE_URL` no formato `postgresql://user:senha@host:porta/banco`,
@@ -352,6 +355,27 @@ postgresql://u:s@host:5432/db   ->   jdbc:postgresql://host:5432/db
                                      DATABASE_USERNAME=u
                                      DATABASE_PASSWORD=s
 ```
+
+### Operação
+
+| O quê | Onde |
+|---|---|
+| Saúde geral | `GET /q/health` |
+| Liveness | `GET /q/health/live` — o processo responde |
+| Readiness | `GET /q/health/ready` — inclui o datasource |
+
+Readiness olhando o banco é o que impede o orquestrador de mandar tráfego antes de o
+PostgreSQL estar acessível, e o que distingue "ainda subindo" de "morto" num reinício em laço.
+
+**CORS vem desligado.** O alvo principal é mobile, que não faz preflight; o bundle web é que
+precisa. Ligue por ambiente, nunca por código:
+
+```bash
+CORS_HABILITADO=true
+CORS_ORIGINS=https://app.stewer.dev,https://admin.stewer.dev
+```
+
+Não use `*`: com credenciais o navegador recusa, e seria o mesmo que não ter CORS.
 
 ### O primeiro deploy
 
