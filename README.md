@@ -8,6 +8,14 @@ segundo estúdio, não há migration de emergência para escrever.
 
 ---
 
+## Colocar no ar
+
+Passo a passo completo, do zero, em **[DEPLOY.md](DEPLOY.md)**: Neon para o banco,
+Render para a API, as duas contas gratuitas e sem cartao. O blueprint do Render ja esta
+em [`render.yaml`](render.yaml).
+
+---
+
 ## Stack
 
 | Camada | Escolha |
