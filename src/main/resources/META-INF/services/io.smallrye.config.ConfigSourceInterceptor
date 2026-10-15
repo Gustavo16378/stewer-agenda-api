@@ -1,1 +1,2 @@
 dev.gustavo.stewer.config.JwtSecretConfigInterceptor
+dev.gustavo.stewer.config.DatabaseUrlConfigInterceptor
