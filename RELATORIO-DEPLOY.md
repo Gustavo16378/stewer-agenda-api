@@ -28,6 +28,8 @@ variáveis. O passo a passo é o [DEPLOY.md](DEPLOY.md).
 | `d969def` | CI: testes com Postgres real e build da imagem |
 | `c36589e` | CI: ping de 10 em 10 minutos |
 | `23294af` | `DEPLOY.md` |
+| `9fb6fd1` | Este relatório |
+| `8a08a22` | CI: `mvnw` executável e buildx com driver que exporta cache |
 
 ### App
 
@@ -172,8 +174,14 @@ uma tela que faz seis consultas ficaria perto de um segundo mais lenta.
 - **Se a região Virginia está disponível no plano Free do Render.** A documentação não diz que
   há restrição, mas também não afirma que não há. Se o painel recusar, Ohio é a segunda melhor
   — e aí o projeto do Neon deve ir para `aws-us-east-2`, pelo mesmo motivo de ficar junto.
-- **Os workflows do GitHub Actions.** Conferi o YAML e rodei os mesmos comandos localmente,
-  mas eles só executam de verdade depois do push.
+- ~~Os workflows do GitHub Actions.~~ **Validados de verdade depois do push.** A primeira
+  execução falhou por dois motivos reais, os dois corrigidos em `8a08a22`:
+  `./mvnw: Permission denied` (o arquivo foi commitado do Windows e chegou ao índice como
+  `100644`; agora é `100755`) e `Cache export is not supported for the docker driver`
+  (faltava o `setup-buildx-action`). Depois disso: **CI da API verde em 3m17s com 181
+  testes e a imagem montada; CI do app verde em 1m05s**. O workflow de ping também foi
+  disparado à mão e saiu com sucesso, imprimindo que a variável `URL_DA_API` ainda não
+  existe — exatamente o comportamento silencioso previsto.
 - **O ping mantendo a instância acordada.** Depende de um serviço que ainda não existe.
 
 ---
