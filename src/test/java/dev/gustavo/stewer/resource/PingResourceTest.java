@@ -19,8 +19,7 @@ import org.junit.jupiter.api.Test;
  * primeira quinzena.
  *
  * <p>Que o endpoint realmente sobrevive ao banco fora do ar esta provado fora
- * daqui, com o Postgres parado e o container de producao no ar (ver
- * RELATORIO-DEPLOY.md). Aqui travamos o que da para travar em teste: ele e
+ * daqui, com o Postgres parado e o container de producao no ar. Aqui travamos o que da para travar em teste: ele e
  * publico, nao depende de token e o grupo de liveness nao carrega o datasource.
  */
 @QuarkusTest

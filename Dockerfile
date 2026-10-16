@@ -55,7 +55,7 @@ USER stewer
 # ---------------------------------------------------------------------
 # Memoria e CPU
 #
-# Medido com --memory=512m --cpus=0.1 (ver RELATORIO-DEPLOY.md):
+# Medido com --memory=512m --cpus=0.1:
 #
 #   MaxRAMPercentage=55   heap de ~281 MB. O resto dos 512 MB nao sobra: vai
 #                         para metaspace, code cache, pilhas e buffers diretos
