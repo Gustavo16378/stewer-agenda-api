@@ -260,8 +260,17 @@ public class AgendamentoService {
         OffsetDateTime inicioDoDia = data.atStartOfDay(fuso).toOffsetDateTime();
         OffsetDateTime fimDoDia = data.plusDays(1).atStartOfDay(fuso).toOffsetDateTime();
 
-        return AgendamentoMapper.paraResponses(
-                agendamentoRepository.doProfissionalNaJanela(tenantId, alvo, inicioDoDia, fimDoDia));
+        List<Agendamento> doDia =
+                agendamentoRepository.doProfissionalNaJanela(tenantId, alvo, inicioDoDia, fimDoDia);
+
+        // "Primeira visita" ajuda o profissional a se preparar: e quem nunca
+        // teve atendimento concluido antes deste dia.
+        java.util.Set<UUID> jaVieram = agendamentoRepository.clientesComVisitaAntes(tenantId,
+                doDia.stream().map(a -> a.getCliente().getId()).collect(java.util.stream.Collectors.toSet()),
+                inicioDoDia);
+        return doDia.stream()
+                .map(a -> AgendamentoMapper.paraResponse(a, !jaVieram.contains(a.getCliente().getId())))
+                .toList();
     }
 
     /**

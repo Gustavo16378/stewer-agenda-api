@@ -8,9 +8,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * Linha da lista de clientes do profissional.
  *
- * <p>De proposito nao carrega totais de agendamento: a listagem e paginada e
- * calcular isso por linha custaria uma consulta por cliente. Quando o
- * profissional quer numeros, ele abre o detalhe.
+ * <p>Visitas e ultima visita saem de UMA consulta agregada para a pagina
+ * inteira (nao uma por cliente).
  */
 @Schema(name = "ClienteResumo")
 public record ClienteResumoResponse(
@@ -18,5 +17,9 @@ public record ClienteResumoResponse(
         String nome,
         String email,
         String telefone,
-        OffsetDateTime createdAt) {
+        OffsetDateTime createdAt,
+        @Schema(description = "Atendimentos concluidos")
+        long visitas,
+        @Schema(description = "Inicio do ultimo atendimento concluido; nulo se nunca veio")
+        OffsetDateTime ultimaVisita) {
 }

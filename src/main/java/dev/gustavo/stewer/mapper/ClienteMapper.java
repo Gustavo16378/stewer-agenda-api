@@ -13,7 +13,8 @@ public final class ClienteMapper {
     private ClienteMapper() {
     }
 
-    public static ClienteResumoResponse paraResumo(Usuario cliente) {
+    public static ClienteResumoResponse paraResumo(Usuario cliente, long visitas,
+            java.time.OffsetDateTime ultimaVisita) {
         if (cliente == null) {
             return null;
         }
@@ -22,11 +23,19 @@ public final class ClienteMapper {
                 cliente.getNome(),
                 cliente.getEmail(),
                 cliente.getTelefone(),
-                cliente.getCreatedAt());
+                cliente.getCreatedAt(),
+                visitas,
+                ultimaVisita);
     }
 
-    public static List<ClienteResumoResponse> paraResumos(List<Usuario> clientes) {
-        return clientes.stream().map(ClienteMapper::paraResumo).toList();
+    /** {@code visitas}: id do cliente -> [quantidade (Long), ultima (OffsetDateTime)]. */
+    public static List<ClienteResumoResponse> paraResumos(List<Usuario> clientes,
+            java.util.Map<java.util.UUID, Object[]> visitas) {
+        return clientes.stream().map(c -> {
+            Object[] v = visitas.get(c.getId());
+            return paraResumo(c, v == null ? 0 : (Long) v[0],
+                    v == null ? null : (java.time.OffsetDateTime) v[1]);
+        }).toList();
     }
 
     /**

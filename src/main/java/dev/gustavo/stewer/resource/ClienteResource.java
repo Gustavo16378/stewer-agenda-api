@@ -26,6 +26,8 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -113,5 +115,26 @@ public class ClienteResource {
     })
     public List<AnotacaoResponse> listarAnotacoes(@PathParam("id") UUID id) {
         return clienteService.listarAnotacoes(usuarioLogado.tenantId(), id);
+    }
+
+    @PUT
+    @Path("/{id}/anotacoes/{anotacaoId}")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Corrige o texto de uma anotacao (so quem escreveu, ou o ADMIN)")
+    @SecurityRequirement(name = "bearerAuth")
+    public AnotacaoResponse editarAnotacao(@PathParam("id") UUID id,
+            @PathParam("anotacaoId") UUID anotacaoId,
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") AnotacaoRequest dto) {
+        return clienteService.editarAnotacao(usuarioLogado.tenantId(), id, anotacaoId, dto);
+    }
+
+    @DELETE
+    @Path("/{id}/anotacoes/{anotacaoId}")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Apaga uma anotacao (so quem escreveu, ou o ADMIN)")
+    @SecurityRequirement(name = "bearerAuth")
+    public Response apagarAnotacao(@PathParam("id") UUID id, @PathParam("anotacaoId") UUID anotacaoId) {
+        clienteService.apagarAnotacao(usuarioLogado.tenantId(), id, anotacaoId);
+        return Response.noContent().build();
     }
 }

@@ -29,5 +29,8 @@ public record AgendamentoResponse(
         OffsetDateTime fim,
         StatusAgendamento status,
         String observacao,
-        OffsetDateTime createdAt) {
+        OffsetDateTime createdAt,
+        @Schema(description = "Na agenda do dia: o cliente ainda nao teve nenhum atendimento "
+                + "concluido antes deste. Nulo fora da agenda.")
+        Boolean primeiraVisita) {
 }

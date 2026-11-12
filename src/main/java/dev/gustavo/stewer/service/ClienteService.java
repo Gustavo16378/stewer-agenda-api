@@ -63,6 +63,7 @@ public class ClienteService {
      * Lista os clientes do estabelecimento, opcionalmente filtrando por trecho
      * de nome, e-mail ou telefone.
      */
+    @Transactional
     public List<ClienteResumoResponse> listar(UUID tenantId, String busca, int pagina, int tamanho) {
         exigirEquipeViva();
         // Paginacao fora da faixa e ajustada em silencio em vez de virar 400:
@@ -70,8 +71,9 @@ public class ClienteService {
         int paginaSegura = Math.max(pagina, 0);
         int tamanhoSeguro = tamanho <= 0 ? TAMANHO_PADRAO : Math.min(tamanho, TAMANHO_MAXIMO);
 
-        return ClienteMapper.paraResumos(
-                usuarioRepository.buscarClientes(tenantId, busca, paginaSegura, tamanhoSeguro));
+        List<Usuario> clientes = usuarioRepository.buscarClientes(tenantId, busca, paginaSegura, tamanhoSeguro);
+        return ClienteMapper.paraResumos(clientes, agendamentoRepository.visitasPorCliente(tenantId,
+                clientes.stream().map(Usuario::getId).toList()));
     }
 
     /**
@@ -156,6 +158,36 @@ public class ClienteService {
      *
      * <p>O ADMIN passa direto: ele administra o estabelecimento sem ter ficha.
      */
+    /**
+     * Corrige o texto de uma anotacao. So quem escreveu (ou o ADMIN) mexe: a
+     * anotacao e assinada, e editar a de outro seria falar em nome dele.
+     */
+    @Transactional
+    public AnotacaoResponse editarAnotacao(UUID tenantId, UUID clienteId, UUID anotacaoId,
+            AnotacaoRequest dto) {
+        AnotacaoCliente anotacao = exigirAnotacaoPropria(tenantId, clienteId, anotacaoId);
+        anotacao.setTexto(dto.texto().trim());
+        anotacaoClienteRepository.persistAndFlush(anotacao);
+        return AnotacaoMapper.paraResponse(anotacao);
+    }
+
+    @Transactional
+    public void apagarAnotacao(UUID tenantId, UUID clienteId, UUID anotacaoId) {
+        anotacaoClienteRepository.softDelete(exigirAnotacaoPropria(tenantId, clienteId, anotacaoId));
+    }
+
+    private AnotacaoCliente exigirAnotacaoPropria(UUID tenantId, UUID clienteId, UUID anotacaoId) {
+        exigirEquipeViva();
+        AnotacaoCliente anotacao = anotacaoClienteRepository.buscarVivo(tenantId, anotacaoId)
+                .filter(a -> a.getCliente().getId().equals(clienteId))
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Anotacao", anotacaoId));
+        if (!usuarioLogado.isAdmin()
+                && !anotacao.getProfissional().getUsuario().getId().equals(usuarioLogado.usuarioId())) {
+            throw new AcessoNegadoException("So quem escreveu a anotacao pode muda-la");
+        }
+        return anotacao;
+    }
+
     private void exigirEquipeViva() {
         if (usuarioLogado.role() != Role.PROFISSIONAL) {
             return;

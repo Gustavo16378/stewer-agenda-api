@@ -80,4 +80,47 @@ public class AgendamentoRepository implements TenantScopedRepository<Agendamento
                         .and("agora", agora))
                 .count();
     }
+
+    /**
+     * Para cada cliente da lista: quantos atendimentos concluidos e quando foi o
+     * ultimo. Uma consulta para a pagina inteira, nao uma por cliente.
+     */
+    public java.util.Map<UUID, Object[]> visitasPorCliente(UUID tenantId, java.util.Collection<UUID> clienteIds) {
+        if (clienteIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        List<Object[]> linhas = getEntityManager().createQuery("""
+                select a.cliente.id, count(a), max(a.inicio) from Agendamento a
+                 where a.tenantId = :tenant and a.deletedAt is null
+                   and a.status = :concluido and a.cliente.id in :ids
+                 group by a.cliente.id
+                """, Object[].class)
+                .setParameter("tenant", tenantId)
+                .setParameter("concluido", StatusAgendamento.CONCLUIDO)
+                .setParameter("ids", clienteIds)
+                .getResultList();
+        java.util.Map<UUID, Object[]> mapa = new java.util.HashMap<>();
+        for (Object[] l : linhas) {
+            mapa.put((UUID) l[0], new Object[] {l[1], l[2]});
+        }
+        return mapa;
+    }
+
+    /** Clientes que tem algum atendimento concluido antes de {@code antes}. */
+    public java.util.Set<UUID> clientesComVisitaAntes(UUID tenantId, java.util.Collection<UUID> clienteIds,
+            OffsetDateTime antes) {
+        if (clienteIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return new java.util.HashSet<>(getEntityManager().createQuery("""
+                select distinct a.cliente.id from Agendamento a
+                 where a.tenantId = :tenant and a.deletedAt is null
+                   and a.status = :concluido and a.cliente.id in :ids and a.inicio < :antes
+                """, UUID.class)
+                .setParameter("tenant", tenantId)
+                .setParameter("concluido", StatusAgendamento.CONCLUIDO)
+                .setParameter("ids", clienteIds)
+                .setParameter("antes", antes)
+                .getResultList());
+    }
 }

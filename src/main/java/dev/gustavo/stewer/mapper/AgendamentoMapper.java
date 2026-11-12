@@ -11,6 +11,10 @@ public final class AgendamentoMapper {
     }
 
     public static AgendamentoResponse paraResponse(Agendamento agendamento) {
+        return paraResponse(agendamento, null);
+    }
+
+    public static AgendamentoResponse paraResponse(Agendamento agendamento, Boolean primeiraVisita) {
         if (agendamento == null) {
             return null;
         }
@@ -28,7 +32,8 @@ public final class AgendamentoMapper {
                 agendamento.getFim(),
                 agendamento.getStatus(),
                 agendamento.getObservacao(),
-                agendamento.getCreatedAt());
+                agendamento.getCreatedAt(),
+                primeiraVisita);
     }
 
     public static List<AgendamentoResponse> paraResponses(List<Agendamento> agendamentos) {
