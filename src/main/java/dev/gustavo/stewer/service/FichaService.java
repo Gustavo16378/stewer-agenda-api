@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,9 +46,6 @@ import jakarta.transaction.Transactional;
  */
 @ApplicationScoped
 public class FichaService {
-
-    /** Tipos aceitos para foto. O app sempre manda JPEG; o resto e por garantia. */
-    static final Set<String> TIPOS_DE_IMAGEM = Set.of("image/jpeg", "image/png", "image/webp");
 
     /** Teto de cada foto ja decodificada. */
     static final int TAMANHO_MAXIMO_FOTO = 1_500_000;
@@ -122,8 +118,8 @@ public class FichaService {
     public FotoConteudoResponse conteudoDaFoto(UUID tenantId, UUID clienteId, UUID fotoId) {
         clienteService.exigirEquipeViva();
         FotoCliente foto = exigirFoto(tenantId, clienteId, fotoId);
-        return new FotoConteudoResponse(foto.getId(), "data:" + foto.getTipoConteudo() + ";base64,"
-                + Base64.getEncoder().encodeToString(foto.getConteudo()));
+        return new FotoConteudoResponse(foto.getId(),
+                ImagemRecebida.dataUrl(foto.getTipoConteudo(), foto.getConteudo()));
     }
 
     @Transactional
@@ -131,25 +127,8 @@ public class FichaService {
         clienteService.exigirEquipeViva();
         Usuario cliente = clienteService.exigirCliente(tenantId, clienteId);
 
-        String tipo = dto.tipoConteudo().trim().toLowerCase();
-        if (!TIPOS_DE_IMAGEM.contains(tipo)) {
-            throw new RegraNegocioException("FOTO_TIPO_INVALIDO", "Envie a foto em JPEG, PNG ou WebP");
-        }
-        byte[] bytes;
-        try {
-            String base64 = dto.conteudoBase64();
-            int virgula = base64.indexOf(',');
-            // aceita tanto o base64 puro quanto uma data URL inteira
-            bytes = Base64.getDecoder().decode(base64.startsWith("data:") ? base64.substring(virgula + 1) : base64);
-        } catch (IllegalArgumentException e) {
-            throw new RegraNegocioException("FOTO_INVALIDA", "A imagem nao veio em base64 valido");
-        }
-        if (bytes.length == 0) {
-            throw new RegraNegocioException("FOTO_INVALIDA", "A imagem veio vazia");
-        }
-        if (bytes.length > TAMANHO_MAXIMO_FOTO) {
-            throw new RegraNegocioException("FOTO_GRANDE_DEMAIS", "Foto grande demais; o limite e 1,5 MB");
-        }
+        ImagemRecebida.Imagem imagem = ImagemRecebida.decodificar(dto.tipoConteudo(), dto.conteudoBase64(),
+                TAMANHO_MAXIMO_FOTO, "1,5 MB");
 
         FotoCliente foto = new FotoCliente();
         foto.setTenantId(tenantId);
@@ -158,9 +137,9 @@ public class FichaService {
         foto.setAutor(usuarioRepository.findById(usuarioLogado.usuarioId()));
         foto.setMomento(dto.momento());
         foto.setLegenda(texto(dto.legenda()));
-        foto.setTipoConteudo(tipo);
-        foto.setTamanhoBytes(bytes.length);
-        foto.setConteudo(bytes);
+        foto.setTipoConteudo(imagem.tipo());
+        foto.setTamanhoBytes(imagem.bytes().length);
+        foto.setConteudo(imagem.bytes());
         fotoRepository.persistAndFlush(foto);
 
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.FOTO, foto.getId(), clienteId,

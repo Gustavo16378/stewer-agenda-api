@@ -1,6 +1,7 @@
 package dev.gustavo.stewer.resource;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -8,6 +9,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.dto.cliente.FotoConteudoResponse;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
 import dev.gustavo.stewer.service.AuthService;
@@ -19,6 +21,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -28,7 +31,7 @@ import jakarta.ws.rs.core.MediaType;
  * profissional, em vez de colar um id interno que o app nao mostra a ninguem.
  */
 @Path("/usuarios")
-@Tag(name = "Usuarios", description = "Pessoas do estabelecimento (somente ADMIN)")
+@Tag(name = "Usuarios", description = "Pessoas do estabelecimento")
 @Produces(MediaType.APPLICATION_JSON)
 public class UsuarioResource {
 
@@ -47,5 +50,16 @@ public class UsuarioResource {
             @QueryParam("pagina") @DefaultValue("0") @Min(0) int pagina,
             @QueryParam("tamanho") @DefaultValue("20") @Min(1) @Max(100) int tamanho) {
         return authService.buscarPessoas(usuarioLogado.tenantId(), busca, pagina, tamanho);
+    }
+
+    @GET
+    @Path("/{id}/foto")
+    @RolesAllowed({Role.CLIENTE_STR, Role.PROFISSIONAL_STR, Role.ADMIN_STR})
+    @Operation(summary = "Foto de perfil de alguem do estabelecimento, como data URL",
+            description = "A equipe ve todas; o cliente ve a propria e a de quem atende. "
+                    + "Sem foto ou sem permissao: 404.")
+    @SecurityRequirement(name = "bearerAuth")
+    public FotoConteudoResponse foto(@PathParam("id") UUID id) {
+        return authService.fotoDe(usuarioLogado.tenantId(), id);
     }
 }

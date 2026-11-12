@@ -32,6 +32,7 @@ public final class ProfissionalMapper {
                 profissional.getEspecialidade(),
                 profissional.getBio(),
                 profissional.getFotoUrl(),
+                usuario.getFotoAtualizadaEm(),
                 profissional.isAtivo(),
                 profissional.getCreatedAt(),
                 profissional.getUpdatedAt());

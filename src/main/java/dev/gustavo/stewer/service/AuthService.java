@@ -49,6 +49,9 @@ import jakarta.transaction.Transactional;
 public class AuthService {
 
     @Inject
+    dev.gustavo.stewer.security.UsuarioLogado usuarioLogado;
+
+    @Inject
     dev.gustavo.stewer.repository.EventoAuditoriaRepository eventoAuditoriaRepository;
 
     @Inject
@@ -255,7 +258,7 @@ public class AuthService {
         fotoRepository.doCliente(tenantId, usuarioId).forEach(fotoRepository::softDelete);
         eventoAuditoriaRepository.anonimizarCliente(tenantId, usuarioId, usuario.getNome());
         auditoria.registrarComo(tenantId, null, null, Role.CLIENTE.name(), Auditoria.Acao.EXCLUIU_CONTA,
-                Auditoria.Entidade.CLIENTE, usuarioId, usuarioId, "Um cliente excluiu a propria conta");
+                Auditoria.Entidade.CLIENTE, usuarioId, usuarioId, "Um cliente excluiu a própria conta");
 
         usuario.setNome("Conta excluída");
         usuario.setEmail("excluido-" + usuario.getId() + "@removido.invalid");
@@ -361,5 +364,49 @@ public class AuthService {
         }
         String limpo = telefone.trim();
         return limpo.isEmpty() ? null : limpo;
+    }
+
+    /** Teto da foto de perfil ja decodificada. */
+    static final int TAMANHO_MAXIMO_FOTO_PERFIL = 600_000;
+
+    @Transactional
+    public UsuarioResponse trocarFoto(UUID tenantId, UUID usuarioId,
+            dev.gustavo.stewer.dto.usuario.FotoPerfilRequest dto) {
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+        ImagemRecebida.Imagem imagem = ImagemRecebida.decodificar(dto.tipoConteudo(), dto.conteudoBase64(),
+                TAMANHO_MAXIMO_FOTO_PERFIL, "600 KB");
+        usuario.setFoto(imagem.bytes());
+        usuario.setFotoTipo(imagem.tipo());
+        usuario.setFotoAtualizadaEm(OffsetDateTime.now(ZoneOffset.UTC));
+        usuarioRepository.persistAndFlush(usuario);
+        return UsuarioMapper.paraResponse(usuario);
+    }
+
+    @Transactional
+    public UsuarioResponse removerFoto(UUID tenantId, UUID usuarioId) {
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+        usuario.setFoto(null);
+        usuario.setFotoTipo(null);
+        usuario.setFotoAtualizadaEm(null);
+        usuarioRepository.persistAndFlush(usuario);
+        return UsuarioMapper.paraResponse(usuario);
+    }
+
+    /**
+     * A foto de alguem do estabelecimento. A equipe ve qualquer uma; o cliente ve a
+     * propria e a de quem atende (para escolher com quem marcar), nunca a de outro
+     * cliente. Sem foto, ou sem permissao, e 404: nao confirma nada.
+     */
+    @Transactional
+    public dev.gustavo.stewer.dto.cliente.FotoConteudoResponse fotoDe(UUID tenantId, UUID usuarioId) {
+        Usuario alvo = usuarioRepository.buscarVivo(tenantId, usuarioId)
+                .filter(u -> u.getFotoAtualizadaEm() != null)
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Foto", usuarioId));
+        boolean clientePedindo = usuarioLogado.role() == Role.CLIENTE;
+        if (clientePedindo && alvo.getRole() == Role.CLIENTE && !alvo.getId().equals(usuarioLogado.usuarioId())) {
+            throw RecursoNaoEncontradoException.de("Foto", usuarioId);
+        }
+        return new dev.gustavo.stewer.dto.cliente.FotoConteudoResponse(alvo.getId(),
+                ImagemRecebida.dataUrl(alvo.getFotoTipo(), alvo.getFoto()));
     }
 }

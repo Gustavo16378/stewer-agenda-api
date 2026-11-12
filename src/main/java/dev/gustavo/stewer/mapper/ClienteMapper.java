@@ -28,7 +28,8 @@ public final class ClienteMapper {
                 cliente.getTelefone(),
                 cliente.getCreatedAt(),
                 visitas,
-                ultimaVisita);
+                ultimaVisita,
+                cliente.getFotoAtualizadaEm());
     }
 
     /** {@code visitas}: id do cliente -> [quantidade (Long), ultima (OffsetDateTime)]. */
@@ -57,6 +58,7 @@ public final class ClienteMapper {
                 cliente.getEmail(),
                 cliente.getTelefone(),
                 cliente.getCreatedAt(),
+                cliente.getFotoAtualizadaEm(),
                 AgendamentoMapper.paraResponses(agendamentos),
                 ficha,
                 metricas);

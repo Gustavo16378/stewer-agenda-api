@@ -23,6 +23,8 @@ public record ProfissionalResponse(
         String especialidade,
         String bio,
         String fotoUrl,
+        @Schema(description = "Quando a foto de perfil da conta mudou; nulo se nao tem foto")
+        OffsetDateTime fotoVersao,
         boolean ativo,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {

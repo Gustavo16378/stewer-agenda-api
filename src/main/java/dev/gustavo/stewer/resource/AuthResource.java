@@ -12,6 +12,7 @@ import dev.gustavo.stewer.dto.auth.RedefinirSenhaRequest;
 import dev.gustavo.stewer.dto.auth.RegistrarRequest;
 import dev.gustavo.stewer.dto.auth.TokenResponse;
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.dto.usuario.FotoPerfilRequest;
 import dev.gustavo.stewer.dto.usuario.AtualizarPerfilRequest;
 import dev.gustavo.stewer.dto.usuario.DispositivoRequest;
 import dev.gustavo.stewer.dto.usuario.ExcluirContaRequest;
@@ -28,6 +29,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -161,6 +163,26 @@ public class AuthResource {
             @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ExcluirContaRequest dto) {
         authService.excluirConta(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
         return Response.noContent().build();
+    }
+
+    @PUT
+    @Path("/eu/foto")
+    @Authenticated
+    @Operation(summary = "Troca a foto de perfil da conta",
+            description = "Imagem em base64 (JPEG, PNG ou WebP, ate 600 KB). O app ja manda reduzida.")
+    @SecurityRequirement(name = "bearerAuth")
+    public UsuarioResponse trocarFoto(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") FotoPerfilRequest dto) {
+        return authService.trocarFoto(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+    }
+
+    @DELETE
+    @Path("/eu/foto")
+    @Authenticated
+    @Operation(summary = "Tira a foto de perfil")
+    @SecurityRequirement(name = "bearerAuth")
+    public UsuarioResponse removerFoto() {
+        return authService.removerFoto(usuarioLogado.tenantId(), usuarioLogado.usuarioId());
     }
 
     @POST

@@ -21,6 +21,8 @@ public record ClienteDetalheResponse(
         String email,
         String telefone,
         OffsetDateTime createdAt,
+        @Schema(description = "Quando a foto de perfil mudou; nulo se nao tem foto")
+        OffsetDateTime fotoVersao,
         List<AgendamentoResponse> agendamentos,
         FichaResponse ficha,
         MetricasClienteResponse metricas) {

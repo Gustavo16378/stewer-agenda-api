@@ -21,5 +21,7 @@ public record ClienteResumoResponse(
         @Schema(description = "Atendimentos concluidos")
         long visitas,
         @Schema(description = "Inicio do ultimo atendimento concluido; nulo se nunca veio")
-        OffsetDateTime ultimaVisita) {
+        OffsetDateTime ultimaVisita,
+        @Schema(description = "Quando a foto de perfil mudou; nulo se nao tem foto")
+        OffsetDateTime fotoVersao) {
 }

@@ -19,5 +19,7 @@ public record UsuarioResponse(
         @Schema(description = "Quando a conta foi criada")
         OffsetDateTime criadoEm,
         @Schema(description = "Recebe lembrete do horario por e-mail")
-        boolean lembreteEmail) {
+        boolean lembreteEmail,
+        @Schema(description = "Quando a foto de perfil mudou; nulo se nao tem foto")
+        OffsetDateTime fotoVersao) {
 }

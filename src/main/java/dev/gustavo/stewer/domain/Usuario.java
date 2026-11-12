@@ -29,6 +29,18 @@ public class Usuario extends TenantOwnedEntity {
     private Role role;
 
     /** Recebe lembrete de horario por e-mail. Liga por padrao (V6). */
+    /** Foto de perfil. Lazy: listar usuarios nao carrega os bytes. */
+    @jakarta.persistence.Basic(fetch = jakarta.persistence.FetchType.LAZY)
+    @Column(name = "foto")
+    private byte[] foto;
+
+    @Column(name = "foto_tipo", length = 40)
+    private String fotoTipo;
+
+    /** Quando a foto mudou; nulo sem foto. Vira a "versao" que o app usa no cache. */
+    @Column(name = "foto_atualizada_em")
+    private java.time.OffsetDateTime fotoAtualizadaEm;
+
     @Column(name = "lembrete_email", nullable = false)
     private boolean lembreteEmail = true;
 
@@ -78,5 +90,29 @@ public class Usuario extends TenantOwnedEntity {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public byte[] getFoto() {
+        return foto;
+    }
+
+    public void setFoto(byte[] foto) {
+        this.foto = foto;
+    }
+
+    public String getFotoTipo() {
+        return fotoTipo;
+    }
+
+    public void setFotoTipo(String fotoTipo) {
+        this.fotoTipo = fotoTipo;
+    }
+
+    public java.time.OffsetDateTime getFotoAtualizadaEm() {
+        return fotoAtualizadaEm;
+    }
+
+    public void setFotoAtualizadaEm(java.time.OffsetDateTime fotoAtualizadaEm) {
+        this.fotoAtualizadaEm = fotoAtualizadaEm;
     }
 }
