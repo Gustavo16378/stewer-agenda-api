@@ -75,6 +75,14 @@ services:
       - key: BOOTSTRAP_TENANT_NOME
         value: Stewer Gabriel
 
+      # Nome e especialidade do dono, que tambem atende: a primeira subida cria
+      # a ficha de profissional dele com grade de segunda a sabado, 09-19.
+      - key: BOOTSTRAP_ADMIN_NOME
+        value: Stewer Gabriel
+
+      - key: BOOTSTRAP_ADMIN_ESPECIALIDADE
+        value: Visagismo
+
       # Palmas (TO). NAO use America/Sao_Paulo: se o horario de verao voltar,
       # so Sao Paulo muda de offset e a agenda sai uma hora errada.
       - key: BOOTSTRAP_TENANT_FUSO

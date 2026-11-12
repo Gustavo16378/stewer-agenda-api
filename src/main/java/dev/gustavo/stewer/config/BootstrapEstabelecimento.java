@@ -1,14 +1,21 @@
 package dev.gustavo.stewer.config;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import dev.gustavo.stewer.domain.Disponibilidade;
+import dev.gustavo.stewer.domain.Profissional;
 import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.domain.Tenant;
 import dev.gustavo.stewer.domain.Usuario;
+import dev.gustavo.stewer.repository.DisponibilidadeRepository;
+import dev.gustavo.stewer.repository.ProfissionalRepository;
 import dev.gustavo.stewer.repository.TenantRepository;
 import dev.gustavo.stewer.repository.UsuarioRepository;
 
@@ -55,6 +62,12 @@ public class BootstrapEstabelecimento {
     @Inject
     UsuarioRepository usuarioRepository;
 
+    @Inject
+    ProfissionalRepository profissionalRepository;
+
+    @Inject
+    DisponibilidadeRepository disponibilidadeRepository;
+
     @ConfigProperty(name = "stewer.bootstrap.habilitado", defaultValue = "true")
     boolean habilitado;
 
@@ -80,6 +93,23 @@ public class BootstrapEstabelecimento {
     @ConfigProperty(name = "stewer.bootstrap.admin.senha")
     Optional<String> adminSenha;
 
+    /**
+     * O dono do estudio tambem atende. Sem ficha de profissional nenhum cliente
+     * consegue agendar, e criar a ficha pelo app exigiria alguem que ja seja
+     * profissional ou admin com acesso a lista de usuarios.
+     */
+    @ConfigProperty(name = "stewer.bootstrap.admin.profissional", defaultValue = "true")
+    boolean adminTambemAtende;
+
+    @ConfigProperty(name = "stewer.bootstrap.admin.especialidade")
+    Optional<String> adminEspecialidade;
+
+    /** Grade inicial do dono: segunda a sabado, 09:00-19:00. Ele ajusta pelo app. */
+    private static final List<DayOfWeek> DIAS_PADRAO = List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
+            DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
+    private static final LocalTime ABRE = LocalTime.of(9, 0);
+    private static final LocalTime FECHA = LocalTime.of(19, 0);
+
     void aoSubir(@Observes StartupEvent evento) {
         executar();
     }
@@ -100,7 +130,47 @@ public class BootstrapEstabelecimento {
         adminEmail
                 .map(String::trim)
                 .filter(email -> !email.isEmpty())
-                .ifPresent(email -> criarAdminSeFaltar(tenant, email));
+                .ifPresent(email -> {
+                    criarAdminSeFaltar(tenant, email);
+                    if (adminTambemAtende) {
+                        criarFichaDoDonoSeFaltar(tenant, email);
+                    }
+                });
+    }
+
+    /**
+     * So age num estudio sem nenhum profissional: se o dono removeu a propria
+     * ficha de proposito, reiniciar a API nao a traz de volta.
+     */
+    private void criarFichaDoDonoSeFaltar(Tenant tenant, String email) {
+        if (!profissionalRepository.listar(tenant.getId(), false).isEmpty()) {
+            return;
+        }
+        Usuario dono = usuarioRepository.porEmail(tenant.getId(), email).orElse(null);
+        if (dono == null) {
+            return;
+        }
+
+        Profissional ficha = new Profissional();
+        ficha.setTenantId(tenant.getId());
+        ficha.setUsuario(dono);
+        ficha.setEspecialidade(adminEspecialidade.map(String::trim).filter(e -> !e.isEmpty())
+                .orElse(null));
+        ficha.setAtivo(true);
+        profissionalRepository.persist(ficha);
+
+        for (DayOfWeek dia : DIAS_PADRAO) {
+            Disponibilidade faixa = new Disponibilidade();
+            faixa.setTenantId(tenant.getId());
+            faixa.setProfissional(ficha);
+            faixa.setDiaSemana(Disponibilidade.toDiaSemana(dia));
+            faixa.setHoraInicio(ABRE);
+            faixa.setHoraFim(FECHA);
+            disponibilidadeRepository.persist(faixa);
+        }
+
+        LOG.infof("Ficha de profissional de '%s' criada, atendendo de segunda a sabado, 09:00-19:00.",
+                email);
     }
 
     private Tenant criarTenant(String slug) {
