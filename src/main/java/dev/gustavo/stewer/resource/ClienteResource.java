@@ -84,7 +84,7 @@ public class ClienteResource {
 
     @POST
     @Path("/{id}/anotacoes")
-    @RolesAllowed({ Role.PROFISSIONAL_STR })
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
     @Operation(summary = "Registra uma anotacao de visagismo sobre o cliente",
             description = "A anotacao e assinada pelo profissional do token; admin nao anota.")
     @SecurityRequirement(name = "bearerAuth")

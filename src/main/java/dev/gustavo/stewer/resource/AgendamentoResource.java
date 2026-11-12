@@ -16,6 +16,7 @@ import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.dto.agendamento.AgendamentoRequest;
 import dev.gustavo.stewer.dto.agendamento.AgendamentoResponse;
 import dev.gustavo.stewer.dto.agendamento.AtualizarStatusRequest;
+import dev.gustavo.stewer.dto.agendamento.RemarcarRequest;
 import dev.gustavo.stewer.security.UsuarioLogado;
 import dev.gustavo.stewer.service.AgendamentoService;
 
@@ -48,18 +49,21 @@ public class AgendamentoResource {
     UsuarioLogado usuarioLogado;
 
     @POST
-    @RolesAllowed({Role.CLIENTE_STR})
-    @Operation(summary = "Cliente reserva um horario para si")
+    @RolesAllowed({Role.CLIENTE_STR, Role.PROFISSIONAL_STR, Role.ADMIN_STR})
+    @Operation(summary = "Reserva um horario",
+            description = "CLIENTE reserva para si. PROFISSIONAL (na propria agenda) e ADMIN "
+                    + "marcam para o cliente informado em clienteId.")
     @SecurityRequirement(name = "bearerAuth")
     @APIResponses({
             @APIResponse(responseCode = "201", description = "Agendamento criado"),
             @APIResponse(responseCode = "404", description = "Profissional ou servico nao encontrado"),
             @APIResponse(responseCode = "409", description = "Horario ocupado ou bloqueado"),
-            @APIResponse(responseCode = "422", description = "Horario no passado ou fora da grade")
+            @APIResponse(responseCode = "422",
+                    description = "Horario no passado, fora da grade, alem dos limites do cliente "
+                            + "ou clienteId ausente")
     })
     public Response criar(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") AgendamentoRequest dto) {
-        AgendamentoResponse criado = agendamentoService.criar(
-                usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+        AgendamentoResponse criado = agendamentoService.criar(usuarioLogado.tenantId(), dto);
         return Response.created(URI.create("/agendamentos/" + criado.id()))
                 .entity(criado)
                 .build();
@@ -91,10 +95,28 @@ public class AgendamentoResource {
             @Parameter(description = "Dia a consultar, no formato YYYY-MM-DD")
             @QueryParam("data") @NotNull(message = "data e obrigatoria") LocalDate data,
 
-            @Parameter(description = "Obrigatorio para ADMIN; ignorado para PROFISSIONAL")
+            @Parameter(description = "ADMIN: agenda de quem ver (omitido, a propria ficha). "
+                    + "Ignorado para PROFISSIONAL")
             @QueryParam("profissionalId") UUID profissionalId) {
 
         return agendamentoService.agendaDoDia(usuarioLogado.tenantId(), data, profissionalId);
+    }
+
+    @PATCH
+    @Path("/{id}/horario")
+    @RolesAllowed({Role.CLIENTE_STR, Role.PROFISSIONAL_STR, Role.ADMIN_STR})
+    @Operation(summary = "Remarca para outro horario (e, opcionalmente, outro profissional)")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Agendamento remarcado"),
+            @APIResponse(responseCode = "403", description = "Sem permissao sobre este agendamento"),
+            @APIResponse(responseCode = "404", description = "Agendamento nao encontrado"),
+            @APIResponse(responseCode = "409", description = "Novo horario ocupado ou agendamento ja encerrado"),
+            @APIResponse(responseCode = "422", description = "Novo horario no passado ou fora da grade")
+    })
+    public AgendamentoResponse remarcar(@PathParam("id") UUID id,
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") RemarcarRequest dto) {
+        return agendamentoService.remarcar(usuarioLogado.tenantId(), id, dto);
     }
 
     @PATCH

@@ -101,11 +101,22 @@ public class HorariosLivresService {
     @Transactional
     public HorariosLivresResponse calcular(UUID tenantId, UUID profissionalId, LocalDate data,
             UUID servicoId) {
+        return calcular(tenantId, profissionalId, data, servicoId, null);
+    }
+
+    /**
+     * Igual ao calculo normal, mas sem contar {@code ignorarAgendamentoId} como
+     * ocupacao: e o que a tela de remarcar precisa para mostrar o horario atual
+     * e os vizinhos dele como livres.
+     */
+    @Transactional
+    public HorariosLivresResponse calcular(UUID tenantId, UUID profissionalId, LocalDate data,
+            UUID servicoId, UUID ignorarAgendamentoId) {
         Profissional profissional = exigirProfissionalAtivo(tenantId, profissionalId);
         Servico servico = exigirServicoAtivo(tenantId, servicoId);
 
         List<Janela> livres = janelasLivres(tenantId, profissional.getId(), data,
-                servico.duracao());
+                servico.duracao(), ignorarAgendamentoId);
 
         List<HorarioLivreResponse> horarios = livres.stream()
                 .map(j -> new HorarioLivreResponse(j.inicio(), j.fim()))
@@ -123,6 +134,11 @@ public class HorariosLivresService {
      */
     public List<Janela> janelasLivres(UUID tenantId, UUID profissionalId, LocalDate data,
             Duration duracao) {
+        return janelasLivres(tenantId, profissionalId, data, duracao, null);
+    }
+
+    public List<Janela> janelasLivres(UUID tenantId, UUID profissionalId, LocalDate data,
+            Duration duracao, UUID ignorarAgendamentoId) {
         short diaSemana = Disponibilidade.toDiaSemana(data.getDayOfWeek());
         List<Disponibilidade> faixas =
                 disponibilidadeRepository.doDia(tenantId, profissionalId, diaSemana);
@@ -131,7 +147,7 @@ public class HorariosLivresService {
         }
 
         ZoneId fuso = fusoDo(tenantId);
-        List<Janela> ocupacoes = ocupacoesDoDia(tenantId, profissionalId, data);
+        List<Janela> ocupacoes = ocupacoesDoDia(tenantId, profissionalId, data, ignorarAgendamentoId);
         // Slot que ja passou nao serve para ninguem reservar; so importa quando
         // a data pedida e hoje, entao a comparacao e feita uma vez so.
         // "Agora" e um instante: nao depende de fuso nenhum.
@@ -153,6 +169,11 @@ public class HorariosLivresService {
      * comecar na vespera e invadir a manha seguinte.
      */
     public List<Janela> ocupacoesDoDia(UUID tenantId, UUID profissionalId, LocalDate data) {
+        return ocupacoesDoDia(tenantId, profissionalId, data, null);
+    }
+
+    public List<Janela> ocupacoesDoDia(UUID tenantId, UUID profissionalId, LocalDate data,
+            UUID ignorarAgendamentoId) {
         ZoneId fuso = fusoDo(tenantId);
         OffsetDateTime inicioDoDia = data.atStartOfDay(fuso).toOffsetDateTime();
         OffsetDateTime fimDoDia = data.plusDays(1).atStartOfDay(fuso).toOffsetDateTime();
@@ -164,6 +185,9 @@ public class HorariosLivresService {
         }
         for (Agendamento agendamento : agendamentoRepository.ativosNaJanela(tenantId,
                 profissionalId, inicioDoDia, fimDoDia)) {
+            if (agendamento.getId().equals(ignorarAgendamentoId)) {
+                continue;
+            }
             ocupacoes.add(new Janela(agendamento.getInicio(), agendamento.getFim()));
         }
         return ocupacoes;
@@ -186,6 +210,12 @@ public class HorariosLivresService {
                 .map(faixa -> new Janela(inicioDaFaixa(dia, faixa, fuso),
                         fimDaFaixa(dia, faixa, fuso)))
                 .anyMatch(faixa -> faixa.contem(pedido));
+    }
+
+    /** Existe bloqueio pontual do profissional colidindo com o pedido? */
+    public boolean temBloqueio(UUID tenantId, UUID profissionalId, Janela pedido) {
+        return !bloqueioRepository.naJanela(tenantId, profissionalId,
+                pedido.inicio(), pedido.fim()).isEmpty();
     }
 
     /** O fuso em que a hora de parede deste estabelecimento deve ser lida. */

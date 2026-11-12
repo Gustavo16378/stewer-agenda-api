@@ -15,6 +15,7 @@ import dev.gustavo.stewer.domain.StatusAgendamento;
 import dev.gustavo.stewer.domain.Usuario;
 import dev.gustavo.stewer.dto.agendamento.AgendamentoRequest;
 import dev.gustavo.stewer.dto.agendamento.AgendamentoResponse;
+import dev.gustavo.stewer.dto.agendamento.RemarcarRequest;
 import dev.gustavo.stewer.exception.AcessoNegadoException;
 import dev.gustavo.stewer.exception.ConflitoException;
 import dev.gustavo.stewer.exception.RecursoNaoEncontradoException;
@@ -27,6 +28,7 @@ import dev.gustavo.stewer.security.UsuarioLogado;
 import dev.gustavo.stewer.service.HorariosLivresService.Janela;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
@@ -75,8 +77,18 @@ public class AgendamentoService {
     @Inject
     UsuarioLogado usuarioLogado;
 
+    @Inject
+    LimitesDeReserva limitesDeReserva;
+
+    @Inject
+    Event<AgendamentoEvento> eventos;
+
     /**
-     * O cliente logado reserva um horario para si.
+     * Cria um agendamento.
+     *
+     * <p>CLIENTE reserva para si. PROFISSIONAL marca para um cliente, sempre na
+     * propria agenda (o cliente que ligou ou mandou mensagem). ADMIN marca para
+     * qualquer cliente em qualquer agenda.
      *
      * <p>A ordem das validacoes e deliberada: primeiro o que nao existe (404),
      * depois o que nao faz sentido (422) e por ultimo o que disputa recurso com
@@ -84,42 +96,28 @@ public class AgendamentoService {
      * "alguem chegou antes".
      */
     @Transactional
-    public AgendamentoResponse criar(UUID tenantId, UUID clienteId, AgendamentoRequest dto) {
-        Usuario cliente = usuarioRepository.buscarVivo(tenantId, clienteId)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteId));
+    public AgendamentoResponse criar(UUID tenantId, AgendamentoRequest dto) {
+        Usuario cliente = resolverCliente(tenantId, dto.clienteId());
         Profissional profissional =
                 horariosLivresService.exigirProfissionalAtivo(tenantId, dto.profissionalId());
+        exigirPodeUsarAgenda(profissional);
         Servico servico = horariosLivresService.exigirServicoAtivo(tenantId, dto.servicoId());
 
         OffsetDateTime inicio = dto.inicio().withOffsetSameInstant(ZoneOffset.UTC);
-        OffsetDateTime fim = inicio.plus(servico.duracao());
-        Janela pedido = new Janela(inicio, fim);
+        Janela pedido = new Janela(inicio, inicio.plus(servico.duracao()));
 
-        if (inicio.isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new RegraNegocioException("HORARIO_NO_PASSADO",
-                    "Nao da para agendar um horario que ja passou");
+        if (usuarioLogado.temRole(Role.CLIENTE)) {
+            limitesDeReserva.exigirDentroDosLimites(tenantId, cliente.getId(), inicio);
         }
-        if (!horariosLivresService.cabeNaGrade(tenantId, profissional.getId(), pedido)) {
-            throw new RegraNegocioException("FORA_DA_DISPONIBILIDADE",
-                    "O profissional nao atende neste horario");
-        }
-        if (temBloqueio(tenantId, profissional.getId(), pedido)) {
-            throw new ConflitoException("HORARIO_BLOQUEADO",
-                    "O profissional tem um compromisso neste horario");
-        }
-        if (agendamentoRepository.existeSobreposicao(tenantId, profissional.getId(),
-                inicio, fim, null)) {
-            throw new ConflitoException("HORARIO_OCUPADO",
-                    "Ja existe um agendamento neste horario");
-        }
+        exigirHorarioReservavel(tenantId, profissional.getId(), pedido, null);
 
         Agendamento agendamento = new Agendamento();
         agendamento.setTenantId(tenantId);
         agendamento.setCliente(cliente);
         agendamento.setProfissional(profissional);
         agendamento.setServico(servico);
-        agendamento.setInicio(inicio);
-        agendamento.setFim(fim);
+        agendamento.setInicio(pedido.inicio());
+        agendamento.setFim(pedido.fim());
         agendamento.setStatus(StatusAgendamento.AGENDADO);
         agendamento.setObservacao(normalizar(dto.observacao()));
 
@@ -132,9 +130,101 @@ public class AgendamentoService {
         // no mesmo 409 -- no mapper, porque o INSERT pode sair so no commit.
         agendamentoRepository.persistAndFlush(agendamento);
 
+        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CRIADO));
         return AgendamentoMapper.paraResponse(agendamento);
     }
 
+    /**
+     * Troca o horario (e, se pedido, o profissional) de um agendamento que ainda
+     * vai acontecer, numa transacao so. O servico e a duracao ficam os mesmos.
+     *
+     * <p>O proprio agendamento e ignorado na checagem de sobreposicao: remarcar
+     * 30 minutos para frente dentro do mesmo atendimento e valido.
+     */
+    @Transactional
+    public AgendamentoResponse remarcar(UUID tenantId, UUID agendamentoId, RemarcarRequest dto) {
+        Agendamento agendamento = agendamentoRepository.buscarVivo(tenantId, agendamentoId)
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Agendamento", agendamentoId));
+
+        exigirPermissaoSobre(agendamento);
+
+        if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
+            throw new ConflitoException("STATUS_FINAL",
+                    "Este agendamento ja esta " + agendamento.getStatus()
+                            + " e nao pode ser remarcado");
+        }
+
+        Profissional profissional = agendamento.getProfissional();
+        if (dto.profissionalId() != null && !dto.profissionalId().equals(profissional.getId())) {
+            profissional = horariosLivresService.exigirProfissionalAtivo(tenantId, dto.profissionalId());
+            exigirPodeUsarAgenda(profissional);
+        }
+
+        OffsetDateTime inicio = dto.inicio().withOffsetSameInstant(ZoneOffset.UTC);
+        Janela pedido = new Janela(inicio, inicio.plus(agendamento.getServico().duracao()));
+        exigirHorarioReservavel(tenantId, profissional.getId(), pedido, agendamento.getId());
+
+        agendamento.setProfissional(profissional);
+        agendamento.setInicio(pedido.inicio());
+        agendamento.setFim(pedido.fim());
+        agendamentoRepository.persistAndFlush(agendamento);
+
+        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO));
+        return AgendamentoMapper.paraResponse(agendamento);
+    }
+
+    /**
+     * O mesmo funil de regras para criar e remarcar: passado e grade (422),
+     * depois disputa com outro atendimento ou com um bloqueio (409).
+     */
+    private void exigirHorarioReservavel(UUID tenantId, UUID profissionalId, Janela pedido,
+            UUID ignorarAgendamentoId) {
+        if (pedido.inicio().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new RegraNegocioException("HORARIO_NO_PASSADO",
+                    "Nao da para agendar um horario que ja passou");
+        }
+        if (!horariosLivresService.cabeNaGrade(tenantId, profissionalId, pedido)) {
+            throw new RegraNegocioException("FORA_DA_DISPONIBILIDADE",
+                    "O profissional nao atende neste horario");
+        }
+        // Agendamento antes de bloqueio: HORARIO_OCUPADO e o motivo mais
+        // especifico quando os dois coincidem.
+        if (agendamentoRepository.existeSobreposicao(tenantId, profissionalId,
+                pedido.inicio(), pedido.fim(), ignorarAgendamentoId)) {
+            throw new ConflitoException("HORARIO_OCUPADO",
+                    "Ja existe um agendamento neste horario");
+        }
+        if (horariosLivresService.temBloqueio(tenantId, profissionalId, pedido)) {
+            throw new ConflitoException("HORARIO_BLOQUEADO",
+                    "O profissional tem um compromisso neste horario");
+        }
+    }
+
+    /**
+     * CLIENTE: e ele mesmo, sempre. PROFISSIONAL e ADMIN: o cliente informado,
+     * que tem de existir neste estabelecimento com papel de CLIENTE.
+     */
+    private Usuario resolverCliente(UUID tenantId, UUID clienteIdPedido) {
+        if (usuarioLogado.temRole(Role.CLIENTE)) {
+            return usuarioRepository.buscarVivo(tenantId, usuarioLogado.usuarioId())
+                    .orElseThrow(() -> RecursoNaoEncontradoException.de(
+                            "Cliente", usuarioLogado.usuarioId()));
+        }
+        if (clienteIdPedido == null) {
+            throw new RegraNegocioException("CLIENTE_OBRIGATORIO",
+                    "Informe clienteId para marcar em nome de um cliente");
+        }
+        return usuarioRepository.buscarVivoComRole(tenantId, clienteIdPedido, Role.CLIENTE)
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteIdPedido));
+    }
+
+    /** PROFISSIONAL so marca na propria agenda; ADMIN e CLIENTE em qualquer uma. */
+    private void exigirPodeUsarAgenda(Profissional profissional) {
+        if (usuarioLogado.temRole(Role.PROFISSIONAL)
+                && !profissional.getUsuario().getId().equals(usuarioLogado.usuarioId())) {
+            throw new AcessoNegadoException("Voce so marca horarios na sua propria agenda");
+        }
+    }
 
     /** Agendamentos do proprio cliente logado. */
     @Transactional
@@ -199,6 +289,9 @@ public class AgendamentoService {
 
         agendamento.setStatus(novo);
         agendamentoRepository.persistAndFlush(agendamento);
+        if (novo == StatusAgendamento.CANCELADO) {
+            eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CANCELADO));
+        }
         return AgendamentoMapper.paraResponse(agendamento);
     }
 
@@ -207,6 +300,17 @@ public class AgendamentoService {
      * profissional que vai atender e o ADMIN.
      */
     private void exigirPermissaoDeStatus(Agendamento agendamento, StatusAgendamento novo) {
+        exigirPermissaoSobre(agendamento);
+        if (usuarioLogado.temRole(Role.CLIENTE) && novo != StatusAgendamento.CANCELADO) {
+            throw new AcessoNegadoException("Cliente so pode cancelar o proprio agendamento");
+        }
+    }
+
+    /**
+     * Quem pode mexer num agendamento (status ou horario): o cliente dono, o
+     * profissional que vai atender e o ADMIN.
+     */
+    private void exigirPermissaoSobre(Agendamento agendamento) {
         if (usuarioLogado.isAdmin()) {
             return;
         }
@@ -215,9 +319,6 @@ public class AgendamentoService {
         if (usuarioLogado.temRole(Role.CLIENTE)) {
             if (!agendamento.getCliente().getId().equals(usuarioId)) {
                 throw new AcessoNegadoException("Este agendamento nao e seu");
-            }
-            if (novo != StatusAgendamento.CANCELADO) {
-                throw new AcessoNegadoException("Cliente so pode cancelar o proprio agendamento");
             }
             return;
         }
@@ -231,8 +332,12 @@ public class AgendamentoService {
     private UUID resolverProfissionalDaAgenda(UUID tenantId, UUID profissionalIdParam) {
         if (usuarioLogado.isAdmin()) {
             if (profissionalIdParam == null) {
-                throw new RegraNegocioException("PROFISSIONAL_OBRIGATORIO",
-                        "Como ADMIN, informe profissionalId para ver a agenda de alguem");
+                // Dono que tambem atende: sem parametro, ve a propria agenda.
+                return profissionalRepository.porUsuario(tenantId, usuarioLogado.usuarioId())
+                        .map(Profissional::getId)
+                        .orElseThrow(() -> new RegraNegocioException("PROFISSIONAL_OBRIGATORIO",
+                                "Como ADMIN sem ficha de profissional, informe profissionalId "
+                                        + "para ver a agenda de alguem"));
             }
             return profissionalRepository.buscarVivo(tenantId, profissionalIdParam)
                     .orElseThrow(() -> RecursoNaoEncontradoException.de(
@@ -246,22 +351,6 @@ public class AgendamentoService {
                 .orElseThrow(() -> new AcessoNegadoException(
                         "Voce nao tem uma ficha de profissional neste estabelecimento"))
                 .getId();
-    }
-
-    private boolean temBloqueio(UUID tenantId, UUID profissionalId, Janela pedido) {
-        // O dia das ocupacoes e o dia do calendario do estabelecimento.
-        LocalDate dia = pedido.inicio()
-                .atZoneSameInstant(horariosLivresService.fusoDo(tenantId))
-                .toLocalDate();
-        return horariosLivresService.ocupacoesDoDia(tenantId, profissionalId, dia).stream()
-                .anyMatch(pedido::colideCom)
-                // ocupacoesDoDia junta bloqueios e agendamentos; separar aqui daria
-                // uma query a mais so para escolher a mensagem. Se ja existe
-                // agendamento, o proximo teste responde com HORARIO_OCUPADO, que e
-                // mais especifico -- entao so consideramos bloqueio quando NAO ha
-                // agendamento sobreposto.
-                && !agendamentoRepository.existeSobreposicao(tenantId, profissionalId,
-                        pedido.inicio(), pedido.fim(), null);
     }
 
     private static String normalizar(String texto) {

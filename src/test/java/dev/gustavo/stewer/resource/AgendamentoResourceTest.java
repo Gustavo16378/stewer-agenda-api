@@ -295,12 +295,12 @@ class AgendamentoResourceTest {
     }
 
     @Test
-    @DisplayName("profissional nao reserva horario para si: 403")
-    void profissionalNaoAgendaDevolve403() {
-        // O corpo do 403 vem do Quarkus Security, entao aqui so o status importa.
+    @DisplayName("profissional sem informar o cliente nao agenda: 422 CLIENTE_OBRIGATORIO")
+    void profissionalSemClienteDevolve422() {
         postAgendamento(tokenProfissional,
                 corpo(profissional.getId(), servico.getId(), em(DIA, "10:00")))
-                .statusCode(403);
+                .statusCode(422)
+                .body("codigo", equalTo("CLIENTE_OBRIGATORIO"));
     }
 
     @Test

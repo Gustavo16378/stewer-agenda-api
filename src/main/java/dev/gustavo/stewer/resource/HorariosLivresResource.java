@@ -61,9 +61,13 @@ public class HorariosLivresResource {
 
             @Parameter(description = "Servico desejado; a duracao dele define o tamanho do slot")
             @QueryParam("servicoId")
-            @NotNull(message = "servicoId e obrigatorio") UUID servicoId) {
+            @NotNull(message = "servicoId e obrigatorio") UUID servicoId,
+
+            @Parameter(description = "Ao remarcar: o agendamento que esta sendo movido, para que "
+                    + "o horario atual dele conte como livre")
+            @QueryParam("ignorarAgendamentoId") UUID ignorarAgendamentoId) {
 
         return horariosLivresService.calcular(usuarioLogado.tenantId(), profissionalId, data,
-                servicoId);
+                servicoId, ignorarAgendamentoId);
     }
 }

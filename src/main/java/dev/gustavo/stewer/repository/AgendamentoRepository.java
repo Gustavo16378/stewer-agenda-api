@@ -71,4 +71,13 @@ public class AgendamentoRepository implements TenantScopedRepository<Agendamento
                 Parameters.with("cli", clienteId).and("ref", referencia))
                 .list();
     }
+
+    /** Agendamentos ainda por acontecer que o cliente tem marcados. */
+    public long contarFuturosDoCliente(UUID tenantId, UUID clienteId, OffsetDateTime agora) {
+        return vivos(tenantId, "cliente.id = :cli and status = :status and inicio > :agora",
+                Parameters.with("cli", clienteId)
+                        .and("status", StatusAgendamento.AGENDADO)
+                        .and("agora", agora))
+                .count();
+    }
 }

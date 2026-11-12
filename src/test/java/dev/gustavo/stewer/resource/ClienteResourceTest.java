@@ -226,14 +226,15 @@ class ClienteResourceTest {
     }
 
     @Test
-    @DisplayName("admin nao assina anotacao de visagismo: 403")
-    void adminNaoCriaAnotacao() {
+    @DisplayName("admin sem ficha de profissional nao assina anotacao: 422 SEM_FICHA_PROFISSIONAL")
+    void adminSemFichaNaoCriaAnotacao() {
         given()
                 .header("Authorization", "Bearer " + tokenAdmin)
                 .contentType(ContentType.JSON)
                 .body(Map.of("texto", "Anotacao que o admin nao deveria conseguir criar"))
                 .when().post("/clientes/" + joana.getId() + "/anotacoes")
-                .then().statusCode(403);
+                .then().statusCode(422)
+                .body("codigo", equalTo("SEM_FICHA_PROFISSIONAL"));
     }
 
     @Test

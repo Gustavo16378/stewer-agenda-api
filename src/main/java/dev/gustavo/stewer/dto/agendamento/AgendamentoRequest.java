@@ -9,11 +9,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Pedido de agendamento feito pelo cliente.
+ * Pedido de agendamento.
  *
- * <p>Nao existe campo {@code clienteId} de proposito: o dono do agendamento e
- * sempre o usuario do token. Aceitar o id pelo corpo deixaria qualquer cliente
- * reservar horario em nome de outra pessoa.
+ * <p>Quando quem chama e CLIENTE, o dono do agendamento e sempre o usuario do
+ * token e {@code clienteId} e ignorado: aceitar o id pelo corpo deixaria um
+ * cliente reservar em nome de outra pessoa. Profissional e ADMIN marcam para o
+ * cliente que ligou ou mandou mensagem, e ai {@code clienteId} e obrigatorio.
  *
  * <p>O {@code fim} tambem nao vem do cliente: quem manda nele e a duracao
  * cadastrada no servico.
@@ -36,5 +37,9 @@ public record AgendamentoRequest(
 
         @Size(max = 2000, message = "observacao deve ter no maximo 2000 caracteres")
         @Schema(description = "Recado do cliente para o profissional")
-        String observacao) {
+        String observacao,
+
+        @Schema(description = "Cliente do agendamento. Obrigatorio para PROFISSIONAL e ADMIN; "
+                + "ignorado quando quem chama e CLIENTE")
+        UUID clienteId) {
 }
