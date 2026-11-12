@@ -8,10 +8,12 @@ import java.util.Map;
 
 import dev.gustavo.stewer.domain.Profissional;
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.domain.Servico;
 import dev.gustavo.stewer.domain.Tenant;
 import dev.gustavo.stewer.domain.Usuario;
 import dev.gustavo.stewer.repository.DisponibilidadeRepository;
 import dev.gustavo.stewer.repository.ProfissionalRepository;
+import dev.gustavo.stewer.repository.ServicoRepository;
 import dev.gustavo.stewer.repository.TenantRepository;
 import dev.gustavo.stewer.util.DadosDeTeste;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -58,6 +60,9 @@ class BootstrapDoDonoTest {
 
     @Inject
     DisponibilidadeRepository disponibilidadeRepository;
+
+    @Inject
+    ServicoRepository servicoRepository;
 
     @BeforeEach
     void preparar() {
@@ -117,5 +122,25 @@ class BootstrapDoDonoTest {
                             disponibilidadeRepository.count("profissional.id", f.getId())))
                     .toList();
         });
+    }
+
+    @Test
+    @DisplayName("estudio novo nasce com o catalogo do Stewer; quem ja teve servico nao ganha de novo")
+    void catalogoInicial() {
+        bootstrap.executar();
+        List<String> nomes = QuarkusTransaction.requiringNew().call(() -> servicoRepository.listAll().stream()
+                .sorted(java.util.Comparator.comparingLong(Servico::getPrecoCentavos))
+                .map(s -> s.getNome() + " " + s.getDuracaoMinutos() + " " + s.getPrecoCentavos())
+                .toList());
+        assertEquals(List.of("Manutenção de barba 30 7000", "Corte (manutenção) 60 9000",
+                "Consultoria de visagismo 90 25000"), nomes);
+
+        // apagou tudo de proposito: reiniciar nao traz o catalogo de volta
+        QuarkusTransaction.requiringNew().run(() -> servicoRepository.listAll()
+                .forEach(servicoRepository::softDelete));
+        bootstrap.executar();
+        assertEquals(3L, (long) QuarkusTransaction.requiringNew().call(() -> servicoRepository.count()));
+        assertEquals(0L, (long) QuarkusTransaction.requiringNew()
+                .call(() -> servicoRepository.count("deletedAt is null")));
     }
 }

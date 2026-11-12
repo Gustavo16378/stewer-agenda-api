@@ -12,9 +12,11 @@ import org.jboss.logging.Logger;
 import dev.gustavo.stewer.domain.Disponibilidade;
 import dev.gustavo.stewer.domain.Profissional;
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.domain.Servico;
 import dev.gustavo.stewer.domain.Tenant;
 import dev.gustavo.stewer.domain.Usuario;
 import dev.gustavo.stewer.repository.DisponibilidadeRepository;
+import dev.gustavo.stewer.repository.ServicoRepository;
 import dev.gustavo.stewer.repository.ProfissionalRepository;
 import dev.gustavo.stewer.repository.TenantRepository;
 import dev.gustavo.stewer.repository.UsuarioRepository;
@@ -67,6 +69,27 @@ public class BootstrapEstabelecimento {
 
     @Inject
     DisponibilidadeRepository disponibilidadeRepository;
+
+    @Inject
+    ServicoRepository servicoRepository;
+
+    /**
+     * Estudio novo nasce com o catalogo do Stewer, para dar para marcar desde o primeiro
+     * minuto. So age se o estudio NUNCA teve servico (contando os removidos): apagar o
+     * catalogo de proposito e reiniciar a API nao o traz de volta.
+     */
+    @ConfigProperty(name = "stewer.bootstrap.catalogo-inicial", defaultValue = "true")
+    boolean catalogoInicial;
+
+    /** nome, descricao, minutos, centavos */
+    private static final List<Object[]> CATALOGO_INICIAL = List.of(
+            new Object[] { "Consultoria de visagismo",
+                    "Primeiro atendimento: leitura do rosto, do estilo e do objetivo, e o plano de corte "
+                            + "e barba que vai guiar as manutenções.", 90, 25000L },
+            new Object[] { "Corte (manutenção)",
+                    "Manutenção do corte definido na consultoria.", 60, 9000L },
+            new Object[] { "Manutenção de barba",
+                    "Manutenção do desenho da barba.", 30, 7000L });
 
     @ConfigProperty(name = "stewer.bootstrap.habilitado", defaultValue = "true")
     boolean habilitado;
@@ -126,6 +149,9 @@ public class BootstrapEstabelecimento {
 
         String slug = slugConfigurado.filter(s -> !s.isBlank()).orElse(slugPadrao);
         Tenant tenant = tenantRepository.porSlug(slug).orElseGet(() -> criarTenant(slug));
+        if (catalogoInicial) {
+            criarCatalogoSeNuncaTeve(tenant);
+        }
 
         adminEmail
                 .map(String::trim)
@@ -136,6 +162,23 @@ public class BootstrapEstabelecimento {
                         criarFichaDoDonoSeFaltar(tenant, email);
                     }
                 });
+    }
+
+    private void criarCatalogoSeNuncaTeve(Tenant tenant) {
+        if (servicoRepository.count("tenantId", tenant.getId()) > 0) {
+            return;
+        }
+        for (Object[] item : CATALOGO_INICIAL) {
+            Servico servico = new Servico();
+            servico.setTenantId(tenant.getId());
+            servico.setNome((String) item[0]);
+            servico.setDescricao((String) item[1]);
+            servico.setDuracaoMinutos((Integer) item[2]);
+            servico.setPrecoCentavos((Long) item[3]);
+            servico.setAtivo(true);
+            servicoRepository.persist(servico);
+        }
+        LOG.infof("Catalogo inicial criado com %d servicos", CATALOGO_INICIAL.size());
     }
 
     /**
