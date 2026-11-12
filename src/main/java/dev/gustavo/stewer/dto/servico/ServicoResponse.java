@@ -1,6 +1,7 @@
 package dev.gustavo.stewer.dto.servico;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -18,5 +19,7 @@ public record ServicoResponse(
         long precoCentavos,
         boolean ativo,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        @Schema(description = "Fotos de exemplo, em ordem; a URL e GET /imagens/{id}")
+        List<UUID> fotos) {
 }

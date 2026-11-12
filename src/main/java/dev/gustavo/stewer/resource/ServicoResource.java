@@ -49,6 +49,9 @@ public class ServicoResource {
     @Inject
     UsuarioLogado usuarioLogado;
 
+    @Inject
+    dev.gustavo.stewer.service.EstudioService estudioService;
+
     @GET
     @Authenticated
     @Operation(summary = "Lista os servicos do estabelecimento, ordenados por nome")
@@ -104,6 +107,27 @@ public class ServicoResource {
     })
     public ServicoResponse atualizar(@PathParam("id") UUID id, @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ServicoRequest dto) {
         return servicoService.atualizar(usuarioLogado.tenantId(), id, dto);
+    }
+
+    @POST
+    @Path("/{id}/fotos")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Poe uma foto de exemplo no servico (ate 6)")
+    @SecurityRequirement(name = "bearerAuth")
+    public Response adicionarFoto(@PathParam("id") UUID id,
+            @Valid @NotNull dev.gustavo.stewer.dto.estudio.ImagemRequest dto) {
+        return Response.status(Response.Status.CREATED)
+                .entity(estudioService.adicionarFotoDoServico(usuarioLogado.tenantId(), id, dto)).build();
+    }
+
+    @DELETE
+    @Path("/{id}/fotos/{fotoId}")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Apaga uma foto de exemplo do servico")
+    @SecurityRequirement(name = "bearerAuth")
+    public Response removerFoto(@PathParam("id") UUID id, @PathParam("fotoId") UUID fotoId) {
+        estudioService.removerFotoDoServico(usuarioLogado.tenantId(), id, fotoId);
+        return Response.noContent().build();
     }
 
     @DELETE

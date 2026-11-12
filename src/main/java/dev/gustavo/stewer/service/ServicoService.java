@@ -33,13 +33,22 @@ public class ServicoService {
     @Inject
     ServicoRepository servicoRepository;
 
+    @Inject
+    dev.gustavo.stewer.repository.ImagemPublicaRepository imagemRepository;
+
     /** Catalogo ordenado por nome. Inativos so entram quando explicitamente pedidos. */
     public List<ServicoResponse> listar(UUID tenantId, boolean incluirInativos) {
-        return ServicoMapper.paraResponses(servicoRepository.listar(tenantId, !incluirInativos));
+        return ServicoMapper.paraResponses(servicoRepository.listar(tenantId, !incluirInativos),
+                imagemRepository.idsPorServico(tenantId));
     }
 
     public ServicoResponse porId(UUID tenantId, UUID id) {
-        return ServicoMapper.paraResponse(buscar(tenantId, id));
+        return ServicoMapper.paraResponse(buscar(tenantId, id), fotosDe(tenantId, id));
+    }
+
+    private java.util.List<UUID> fotosDe(UUID tenantId, UUID servicoId) {
+        return imagemRepository.doServico(tenantId, servicoId).stream()
+                .map(dev.gustavo.stewer.domain.ImagemPublica::getId).toList();
     }
 
     @Transactional
@@ -80,7 +89,7 @@ public class ServicoService {
         // atualizado ao cliente, nao para persistir a mudanca.
         servicoRepository.flush();
 
-        return ServicoMapper.paraResponse(servico);
+        return ServicoMapper.paraResponse(servico, fotosDe(tenantId, id));
     }
 
     /** Soft delete: o servico some do catalogo, mas o historico de agenda sobrevive. */

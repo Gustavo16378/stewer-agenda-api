@@ -56,6 +56,7 @@ public class Auditoria {
         public static final String FOTO = "FOTO";
         public static final String CLIENTE = "CLIENTE";
         public static final String ACESSO = "ACESSO";
+        public static final String ESTUDIO = "ESTUDIO";
 
         private Entidade() {
         }
