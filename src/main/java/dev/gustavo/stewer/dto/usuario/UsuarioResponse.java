@@ -17,5 +17,7 @@ public record UsuarioResponse(
         String telefone,
         Role role,
         @Schema(description = "Quando a conta foi criada")
-        OffsetDateTime criadoEm) {
+        OffsetDateTime criadoEm,
+        @Schema(description = "Recebe lembrete do horario por e-mail")
+        boolean lembreteEmail) {
 }

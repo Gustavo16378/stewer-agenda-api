@@ -6,10 +6,15 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import dev.gustavo.stewer.dto.auth.EsqueciSenhaRequest;
 import dev.gustavo.stewer.dto.auth.LoginRequest;
+import dev.gustavo.stewer.dto.auth.RedefinirSenhaRequest;
 import dev.gustavo.stewer.dto.auth.RegistrarRequest;
 import dev.gustavo.stewer.dto.auth.TokenResponse;
+import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.dto.usuario.AtualizarPerfilRequest;
+import dev.gustavo.stewer.dto.usuario.ExcluirContaRequest;
+import dev.gustavo.stewer.dto.usuario.PreferenciasRequest;
 import dev.gustavo.stewer.dto.usuario.TrocarSenhaRequest;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
@@ -17,6 +22,7 @@ import dev.gustavo.stewer.service.AuthService;
 
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -102,6 +108,57 @@ public class AuthResource {
     public Response trocarSenha(
             @Valid @NotNull(message = "corpo da requisicao e obrigatorio") TrocarSenhaRequest dto) {
         authService.trocarSenha(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/senha/esqueci")
+    @PermitAll
+    @Operation(summary = "Manda um codigo de 6 digitos para o e-mail, se a conta existir",
+            description = "Responde 204 com conta ou sem conta, para nao revelar quem e cliente.")
+    @APIResponse(responseCode = "204", description = "Pedido recebido")
+    public Response esqueciSenha(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") EsqueciSenhaRequest dto) {
+        authService.esqueciSenha(dto);
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/senha/redefinir")
+    @PermitAll
+    @Operation(summary = "Troca a senha com o codigo do e-mail e ja devolve a sessao")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Senha trocada, sessao aberta"),
+            @APIResponse(responseCode = "422", description = "Codigo invalido, vencido ou ja usado")
+    })
+    public TokenResponse redefinirSenha(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") RedefinirSenhaRequest dto) {
+        return authService.redefinirSenha(dto);
+    }
+
+    @PUT
+    @Path("/eu/preferencias")
+    @Authenticated
+    @Operation(summary = "Liga ou desliga o lembrete de horario por e-mail")
+    @SecurityRequirement(name = "bearerAuth")
+    public UsuarioResponse preferencias(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") PreferenciasRequest dto) {
+        return authService.atualizarPreferencias(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+    }
+
+    @POST
+    @Path("/eu/excluir")
+    @RolesAllowed({Role.CLIENTE_STR})
+    @Operation(summary = "Exclui a conta do cliente logado, confirmando a senha",
+            description = "Cancela os horarios futuros, apaga as anotacoes e os dados pessoais.")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "204", description = "Conta excluida"),
+            @APIResponse(responseCode = "422", description = "Senha nao confere")
+    })
+    public Response excluirConta(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ExcluirContaRequest dto) {
+        authService.excluirConta(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
         return Response.noContent().build();
     }
 }

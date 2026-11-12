@@ -20,6 +20,7 @@ public final class UsuarioMapper {
                 usuario.getEmail(),
                 usuario.getTelefone(),
                 usuario.getRole(),
-                usuario.getCreatedAt());
+                usuario.getCreatedAt(),
+                usuario.isLembreteEmail());
     }
 }
