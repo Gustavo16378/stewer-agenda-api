@@ -1,0 +1,76 @@
+# =====================================================================
+# Backup semanal do banco (Neon) — gratuito, criptografado.
+#
+# Toda segunda as 06:13 (UTC), faz um pg_dump do banco de producao, compacta,
+# criptografa com uma senha sua e guarda como artefato desta execucao por 30
+# dias. Este repositorio e PUBLICO: sem a criptografia, qualquer pessoa logada
+# no GitHub conseguiria baixar os dados dos clientes. Com ela, o arquivo so
+# abre com a senha que esta nos secrets.
+#
+# Para ligar (Settings > Secrets and variables > Actions > Secrets):
+#   BACKUP_DATABASE_URL  a mesma connection string do Neon usada no Render
+#   BACKUP_SENHA         uma senha longa so para os backups (guarde fora daqui)
+# Sem esses dois secrets o workflow roda, avisa e termina verde.
+#
+# Para restaurar um backup (no seu computador):
+#   gpg --decrypt stewer-AAAA-MM-DD.sql.gz.gpg | gunzip > backup.sql
+#   psql "<connection string de destino>" -f backup.sql
+# =====================================================================
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: '13 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Conferir se o backup esta configurado
+        id: config
+        env:
+          URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          SENHA: ${{ secrets.BACKUP_SENHA }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$SENHA" ]; then
+            echo "Backup nao configurado: faltam os secrets BACKUP_DATABASE_URL e BACKUP_SENHA." >> "$GITHUB_STEP_SUMMARY"
+            echo "pronto=nao" >> "$GITHUB_OUTPUT"
+          else
+            echo "pronto=sim" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar cliente do PostgreSQL 17
+        if: steps.config.outputs.pronto == 'sim'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Gerar o dump criptografado
+        if: steps.config.outputs.pronto == 'sim'
+        env:
+          URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          SENHA: ${{ secrets.BACKUP_SENHA }}
+        run: |
+          set -euo pipefail
+          ARQUIVO="stewer-$(date -u +%F).sql.gz.gpg"
+          /usr/lib/postgresql/17/bin/pg_dump "$URL" --no-owner --no-privileges \
+            | gzip -9 \
+            | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$SENHA" -o "$ARQUIVO"
+          echo "ARQUIVO=$ARQUIVO" >> "$GITHUB_ENV"
+          echo "Backup gerado: $ARQUIVO ($(du -h "$ARQUIVO" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar por 30 dias
+        if: steps.config.outputs.pronto == 'sim'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-banco
+          path: ${{ env.ARQUIVO }}
+          retention-days: 30
+          if-no-files-found: error
