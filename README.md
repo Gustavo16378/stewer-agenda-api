@@ -474,6 +474,13 @@ src/test/java/dev/gustavo/stewer/
 
 ---
 
+## Testes
+
+273 testes automatizados com PostgreSQL de verdade (92% das linhas cobertas), uma
+suíte de segurança organizada pelo OWASP Top 10 e carga e estresse com autocannon. O
+plano e o relatório estão em [`docs/testes.md`](docs/testes.md); a política de
+segurança, em [`SECURITY.md`](SECURITY.md).
+
 ## Comandos úteis
 
 ```bash
