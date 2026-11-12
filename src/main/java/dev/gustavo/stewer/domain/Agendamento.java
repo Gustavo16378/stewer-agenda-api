@@ -41,6 +41,14 @@ public class Agendamento extends TenantOwnedEntity {
     @Column(name = "observacao")
     private String observacao;
 
+    /**
+     * Preco do servico no dia em que foi marcado. Mudar o preco depois nao
+     * reescreve quanto o cliente ja gastou. Nulo so em registro antigo sem
+     * migrar; quem le cai no preco atual do servico.
+     */
+    @Column(name = "preco_centavos")
+    private Long precoCentavos;
+
     /** Quando o lembrete por e-mail saiu; nulo enquanto nao saiu. Remarcar zera. */
     @Column(name = "lembrete_enviado_em")
     private OffsetDateTime lembreteEnviadoEm;
@@ -107,5 +115,18 @@ public class Agendamento extends TenantOwnedEntity {
 
     public void setObservacao(String observacao) {
         this.observacao = observacao;
+    }
+
+    public Long getPrecoCentavos() {
+        return precoCentavos;
+    }
+
+    public void setPrecoCentavos(Long precoCentavos) {
+        this.precoCentavos = precoCentavos;
+    }
+
+    /** O valor que vale para este atendimento: o do dia da marcacao. */
+    public long precoEfetivo() {
+        return precoCentavos != null ? precoCentavos : servico.getPrecoCentavos();
     }
 }

@@ -27,7 +27,7 @@ public final class AgendamentoMapper {
                 agendamento.getServico().getId(),
                 agendamento.getServico().getNome(),
                 agendamento.getServico().getDuracaoMinutos(),
-                agendamento.getServico().getPrecoCentavos(),
+                agendamento.precoEfetivo(),
                 agendamento.getInicio(),
                 agendamento.getFim(),
                 agendamento.getStatus(),
