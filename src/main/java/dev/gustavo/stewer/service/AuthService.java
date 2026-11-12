@@ -9,6 +9,7 @@ import java.util.UUID;
 import dev.gustavo.stewer.domain.Agendamento;
 import dev.gustavo.stewer.domain.AnotacaoCliente;
 import dev.gustavo.stewer.domain.CodigoRedefinicaoSenha;
+import dev.gustavo.stewer.domain.Dispositivo;
 import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.domain.StatusAgendamento;
 import dev.gustavo.stewer.domain.Tenant;
@@ -33,6 +34,7 @@ import dev.gustavo.stewer.mapper.UsuarioMapper;
 import dev.gustavo.stewer.repository.AgendamentoRepository;
 import dev.gustavo.stewer.repository.AnotacaoClienteRepository;
 import dev.gustavo.stewer.repository.CodigoRedefinicaoSenhaRepository;
+import dev.gustavo.stewer.repository.DispositivoRepository;
 import dev.gustavo.stewer.repository.UsuarioRepository;
 import dev.gustavo.stewer.security.FreioDeTentativas;
 import dev.gustavo.stewer.security.TokenService;
@@ -69,6 +71,9 @@ public class AuthService {
 
     @Inject
     EnvioDeEmail envioDeEmail;
+
+    @Inject
+    DispositivoRepository dispositivoRepository;
 
     private static final SecureRandom ALEATORIO = new SecureRandom();
     private static final int VALIDADE_CODIGO_MINUTOS = 30;
@@ -225,6 +230,10 @@ public class AuthService {
             anotacaoRepository.softDelete(anotacao);
         }
 
+        dispositivoRepository.vivos(tenantId, "usuario.id = :u",
+                io.quarkus.panache.common.Parameters.with("u", usuarioId))
+                .list().forEach(dispositivoRepository::softDelete);
+
         usuario.setNome("Conta excluída");
         usuario.setEmail("excluido-" + usuario.getId() + "@removido.invalid");
         usuario.setTelefone(null);
@@ -282,6 +291,29 @@ public class AuthService {
     private static RegraNegocioException codigoInvalido() {
         return new RegraNegocioException("CODIGO_INVALIDO",
                 "Codigo invalido ou vencido. Peca um codigo novo");
+    }
+
+    /** Liga o celular ao usuario logado; se o token era de outra pessoa, passa a ser deste. */
+    @Transactional
+    public void registrarDispositivo(UUID tenantId, UUID usuarioId, String token) {
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+        Dispositivo d = dispositivoRepository.porToken(token).orElseGet(Dispositivo::new);
+        if (d.getId() != null && !d.getTenantId().equals(tenantId)) {
+            dispositivoRepository.softDelete(d);
+            d = new Dispositivo();
+        }
+        d.setTenantId(tenantId);
+        d.setUsuario(usuario);
+        d.setToken(token);
+        dispositivoRepository.persist(d);
+    }
+
+    /** Ao sair da conta: aquele celular para de receber avisos dela. */
+    @Transactional
+    public void removerDispositivo(UUID tenantId, UUID usuarioId, String token) {
+        dispositivoRepository.porToken(token)
+                .filter(d -> d.getTenantId().equals(tenantId) && d.getUsuario().getId().equals(usuarioId))
+                .ifPresent(dispositivoRepository::softDelete);
     }
 
     private Usuario exigirVivo(UUID tenantId, UUID usuarioId) {

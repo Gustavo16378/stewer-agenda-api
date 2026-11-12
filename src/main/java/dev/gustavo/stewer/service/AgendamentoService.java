@@ -130,7 +130,8 @@ public class AgendamentoService {
         // no mesmo 409 -- no mapper, porque o INSERT pode sair so no commit.
         agendamentoRepository.persistAndFlush(agendamento);
 
-        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CRIADO));
+        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CRIADO,
+                usuarioLogado.usuarioId()));
         return AgendamentoMapper.paraResponse(agendamento);
     }
 
@@ -171,7 +172,8 @@ public class AgendamentoService {
         agendamento.setLembreteEnviadoEm(null);
         agendamentoRepository.persistAndFlush(agendamento);
 
-        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO));
+        eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO,
+                usuarioLogado.usuarioId()));
         return AgendamentoMapper.paraResponse(agendamento);
     }
 
@@ -301,7 +303,8 @@ public class AgendamentoService {
         agendamento.setStatus(novo);
         agendamentoRepository.persistAndFlush(agendamento);
         if (novo == StatusAgendamento.CANCELADO) {
-            eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CANCELADO));
+            eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CANCELADO,
+                usuarioLogado.usuarioId()));
         }
         return AgendamentoMapper.paraResponse(agendamento);
     }

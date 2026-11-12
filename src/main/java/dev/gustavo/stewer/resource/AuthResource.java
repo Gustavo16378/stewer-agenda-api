@@ -13,6 +13,7 @@ import dev.gustavo.stewer.dto.auth.RegistrarRequest;
 import dev.gustavo.stewer.dto.auth.TokenResponse;
 import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.dto.usuario.AtualizarPerfilRequest;
+import dev.gustavo.stewer.dto.usuario.DispositivoRequest;
 import dev.gustavo.stewer.dto.usuario.ExcluirContaRequest;
 import dev.gustavo.stewer.dto.usuario.PreferenciasRequest;
 import dev.gustavo.stewer.dto.usuario.TrocarSenhaRequest;
@@ -159,6 +160,30 @@ public class AuthResource {
     public Response excluirConta(
             @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ExcluirContaRequest dto) {
         authService.excluirConta(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/eu/dispositivos")
+    @Authenticated
+    @Operation(summary = "Registra o celular para receber notificacoes da agenda")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponse(responseCode = "204", description = "Registrado")
+    public Response registrarDispositivo(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") DispositivoRequest dto) {
+        authService.registrarDispositivo(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto.token().trim());
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/eu/dispositivos/remover")
+    @Authenticated
+    @Operation(summary = "Para de mandar notificacoes para este celular (ao sair da conta)")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponse(responseCode = "204", description = "Removido")
+    public Response removerDispositivo(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") DispositivoRequest dto) {
+        authService.removerDispositivo(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto.token().trim());
         return Response.noContent().build();
     }
 }
