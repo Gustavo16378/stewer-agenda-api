@@ -372,6 +372,10 @@ Desenvolvido por **Gustavo Dev** — https://gustavodev.dev/
 
 ## 13. Perdi a senha do dono
 
+Se ainda existe outro admin que consegue entrar, nada disso é preciso: em **Equipe** →
+**Quem administra** → **Dar acesso de admin**, ele dá o acesso para a conta que a pessoa
+criar no app (e tira o da conta perdida). O que vem abaixo é para quando ninguém entra.
+
 Enquanto o e-mail (passo 10) não estiver ligado, o "Esqueci minha senha" não chega. Para
 recuperar o acesso do administrador sem mexer no banco na mão:
 

@@ -37,6 +37,8 @@ public class Auditoria {
         public static final String NAO_COMPARECEU = "NAO_COMPARECEU";
         public static final String CADASTROU = "CADASTROU";
         public static final String EXCLUIU_CONTA = "EXCLUIU_CONTA";
+        public static final String DEU_ACESSO = "DEU_ACESSO";
+        public static final String TIROU_ACESSO = "TIROU_ACESSO";
 
         private Acao() {
         }
@@ -53,6 +55,7 @@ public class Auditoria {
         public static final String ANOTACAO = "ANOTACAO";
         public static final String FOTO = "FOTO";
         public static final String CLIENTE = "CLIENTE";
+        public static final String ACESSO = "ACESSO";
 
         private Entidade() {
         }

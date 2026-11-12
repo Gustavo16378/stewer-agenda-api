@@ -12,16 +12,19 @@ import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.dto.cliente.FotoConteudoResponse;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
+import dev.gustavo.stewer.service.AcessoService;
 import dev.gustavo.stewer.service.AuthService;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -40,6 +43,39 @@ public class UsuarioResource {
 
     @Inject
     UsuarioLogado usuarioLogado;
+
+    @Inject
+    AcessoService acessoService;
+
+    @GET
+    @Path("/admins")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Quem tem acesso de admin")
+    @SecurityRequirement(name = "bearerAuth")
+    public List<UsuarioResponse> administradores() {
+        return acessoService.administradores(usuarioLogado.tenantId());
+    }
+
+    @PUT
+    @Path("/{id}/admin")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Da acesso de admin a uma pessoa",
+            description = "Vale a partir do proximo login dela. Repetir nao muda nada.")
+    @SecurityRequirement(name = "bearerAuth")
+    public UsuarioResponse darAcesso(@PathParam("id") UUID id) {
+        return acessoService.darAcesso(usuarioLogado.tenantId(), id);
+    }
+
+    @DELETE
+    @Path("/{id}/admin")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Tira o acesso de admin",
+            description = "Volta a profissional (se atende) ou cliente. Ninguem tira o proprio "
+                    + "acesso, e o ultimo admin fica: 422.")
+    @SecurityRequirement(name = "bearerAuth")
+    public UsuarioResponse tirarAcesso(@PathParam("id") UUID id) {
+        return acessoService.tirarAcesso(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), id);
+    }
 
     @GET
     @RolesAllowed({Role.ADMIN_STR})

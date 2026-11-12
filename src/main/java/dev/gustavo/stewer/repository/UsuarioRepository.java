@@ -64,4 +64,15 @@ public class UsuarioRepository implements TenantScopedRepository<Usuario> {
                 .page(pagina, tamanho)
                 .list();
     }
+
+    /** Quem administra o estabelecimento, por nome. */
+    public List<Usuario> administradores(UUID tenantId) {
+        return vivos(tenantId, "role = :role", Sort.by("nome").ascending(),
+                Parameters.with("role", Role.ADMIN)).list();
+    }
+
+    public long contarAdministradores(UUID tenantId) {
+        return count(VIVOS + " and role = :role",
+                Parameters.with("tenantId", tenantId).and("role", Role.ADMIN));
+    }
 }
