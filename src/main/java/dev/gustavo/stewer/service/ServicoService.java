@@ -28,6 +28,9 @@ import jakarta.transaction.Transactional;
 public class ServicoService {
 
     @Inject
+    Auditoria auditoria;
+
+    @Inject
     ServicoRepository servicoRepository;
 
     /** Catalogo ordenado por nome. Inativos so entram quando explicitamente pedidos. */
@@ -53,6 +56,9 @@ public class ServicoService {
         // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
         // INSERT pode sair so no commit e escapar de um try daqui.
         servicoRepository.persistAndFlush(servico);
+        auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.SERVICO, servico.getId(), null,
+                "Cadastrou o servico " + servico.getNome() + " (" + Auditoria.reais(servico.getPrecoCentavos())
+                        + ", " + servico.getDuracaoMinutos() + " min)");
 
         return ServicoMapper.paraResponse(servico);
     }
@@ -63,7 +69,13 @@ public class ServicoService {
         String nome = dto.nome().trim();
         exigirNomeLivre(tenantId, nome, id);
 
+        String antes = Auditoria.reais(servico.getPrecoCentavos()) + ", " + servico.getDuracaoMinutos() + " min"
+                + (servico.isAtivo() ? "" : ", oculto");
         aplicar(servico, dto, nome);
+        String depois = Auditoria.reais(servico.getPrecoCentavos()) + ", " + servico.getDuracaoMinutos() + " min"
+                + (servico.isAtivo() ? "" : ", oculto");
+        auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.SERVICO, servico.getId(), null,
+                "Alterou o servico " + nome + (antes.equals(depois) ? "" : " (" + antes + " para " + depois + ")"));
         // A entidade esta gerenciada: o flush existe so para o updatedAt chegar
         // atualizado ao cliente, nao para persistir a mudanca.
         servicoRepository.flush();
@@ -74,7 +86,10 @@ public class ServicoService {
     /** Soft delete: o servico some do catalogo, mas o historico de agenda sobrevive. */
     @Transactional
     public void remover(UUID tenantId, UUID id) {
-        servicoRepository.softDelete(buscar(tenantId, id));
+        Servico servico = buscar(tenantId, id);
+        servicoRepository.softDelete(servico);
+        auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.SERVICO, id, null,
+                "Removeu o servico " + servico.getNome() + " do catalogo");
     }
 
     private Servico buscar(UUID tenantId, UUID id) {

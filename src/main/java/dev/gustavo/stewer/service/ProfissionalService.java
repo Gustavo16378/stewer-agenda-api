@@ -30,6 +30,9 @@ import jakarta.transaction.Transactional;
 public class ProfissionalService {
 
     @Inject
+    Auditoria auditoria;
+
+    @Inject
     ProfissionalRepository profissionalRepository;
 
     @Inject
@@ -84,6 +87,8 @@ public class ProfissionalService {
         // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
         // INSERT pode sair so no commit e escapar de um try daqui.
         profissionalRepository.persist(profissional);
+        auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.PROFISSIONAL,
+                profissional.getId(), null, "Adicionou " + usuario.getNome() + " a equipe");
 
         return ProfissionalMapper.paraResponse(profissional);
     }
@@ -108,6 +113,9 @@ public class ProfissionalService {
             profissional.setAtivo(dto.ativo());
         }
         profissionalRepository.persist(profissional);
+        auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.PROFISSIONAL,
+                profissional.getId(), null, "Alterou a ficha de " + profissional.getUsuario().getNome()
+                        + (profissional.isAtivo() ? "" : " (inativo)"));
 
         return ProfissionalMapper.paraResponse(profissional);
     }
@@ -133,6 +141,8 @@ public class ProfissionalService {
     public void remover(UUID tenantId, UUID id) {
         Profissional profissional = buscar(tenantId, id);
         profissionalRepository.softDelete(profissional);
+        auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.PROFISSIONAL, id, null,
+                "Tirou " + profissional.getUsuario().getNome() + " da equipe");
 
         Usuario usuario = profissional.getUsuario();
         if (usuario != null && usuario.getRole() == Role.PROFISSIONAL) {

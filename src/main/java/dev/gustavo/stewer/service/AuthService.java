@@ -49,6 +49,18 @@ import jakarta.transaction.Transactional;
 public class AuthService {
 
     @Inject
+    dev.gustavo.stewer.repository.EventoAuditoriaRepository eventoAuditoriaRepository;
+
+    @Inject
+    dev.gustavo.stewer.repository.FotoClienteRepository fotoRepository;
+
+    @Inject
+    dev.gustavo.stewer.repository.FichaClienteRepository fichaRepository;
+
+    @Inject
+    Auditoria auditoria;
+
+    @Inject
     UsuarioRepository usuarioRepository;
 
     @Inject
@@ -105,6 +117,9 @@ public class AuthService {
         // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
         // INSERT pode sair so no commit e escapar de um try daqui.
         usuarioRepository.persist(usuario);
+        auditoria.registrarComo(tenant.getId(), usuario.getId(), usuario.getNome(), Role.CLIENTE.name(),
+                Auditoria.Acao.CADASTROU, Auditoria.Entidade.CLIENTE, usuario.getId(), usuario.getId(),
+                usuario.getNome() + " criou a conta pelo app");
 
         return montarToken(usuario);
     }
@@ -233,6 +248,14 @@ public class AuthService {
         dispositivoRepository.vivos(tenantId, "usuario.id = :u",
                 io.quarkus.panache.common.Parameters.with("u", usuarioId))
                 .list().forEach(dispositivoRepository::softDelete);
+
+        // LGPD: com a conta vai embora o que a equipe guardou sobre a pessoa
+        // (ficha e fotos), e o nome dela sai das linhas da auditoria.
+        fichaRepository.doCliente(tenantId, usuarioId).ifPresent(fichaRepository::softDelete);
+        fotoRepository.doCliente(tenantId, usuarioId).forEach(fotoRepository::softDelete);
+        eventoAuditoriaRepository.anonimizarCliente(tenantId, usuarioId, usuario.getNome());
+        auditoria.registrarComo(tenantId, null, null, Role.CLIENTE.name(), Auditoria.Acao.EXCLUIU_CONTA,
+                Auditoria.Entidade.CLIENTE, usuarioId, usuarioId, "Um cliente excluiu a propria conta");
 
         usuario.setNome("Conta excluída");
         usuario.setEmail("excluido-" + usuario.getId() + "@removido.invalid");

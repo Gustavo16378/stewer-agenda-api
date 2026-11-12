@@ -63,6 +63,12 @@ public class AgendamentoService {
 
 
     @Inject
+    TenantService tenantService;
+
+    @Inject
+    Auditoria auditoria;
+
+    @Inject
     AgendamentoRepository agendamentoRepository;
 
     @Inject
@@ -120,6 +126,7 @@ public class AgendamentoService {
         agendamento.setFim(pedido.fim());
         agendamento.setStatus(StatusAgendamento.AGENDADO);
         agendamento.setObservacao(normalizar(dto.observacao()));
+        agendamento.setPrecoCentavos(servico.getPrecoCentavos());
 
         // Flush para que id e createdAt ja existam ao montar o 201 e o Location.
         //
@@ -130,6 +137,9 @@ public class AgendamentoService {
         // no mesmo 409 -- no mapper, porque o INSERT pode sair so no commit.
         agendamentoRepository.persistAndFlush(agendamento);
 
+        auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.AGENDAMENTO,
+                agendamento.getId(), cliente.getId(), "Marcou " + servico.getNome() + " de " + cliente.getNome()
+                        + " com " + profissional.getUsuario().getNome() + ", " + quando(tenantId, pedido.inicio()));
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CRIADO,
                 usuarioLogado.usuarioId()));
         return AgendamentoMapper.paraResponse(agendamento);
@@ -165,6 +175,7 @@ public class AgendamentoService {
         Janela pedido = new Janela(inicio, inicio.plus(agendamento.getServico().duracao()));
         exigirHorarioReservavel(tenantId, profissional.getId(), pedido, agendamento.getId());
 
+        String antes = quando(tenantId, agendamento.getInicio());
         agendamento.setProfissional(profissional);
         agendamento.setInicio(pedido.inicio());
         agendamento.setFim(pedido.fim());
@@ -172,6 +183,10 @@ public class AgendamentoService {
         agendamento.setLembreteEnviadoEm(null);
         agendamentoRepository.persistAndFlush(agendamento);
 
+        auditoria.registrar(tenantId, Auditoria.Acao.REMARCOU, Auditoria.Entidade.AGENDAMENTO,
+                agendamento.getId(), agendamento.getCliente().getId(), "Remarcou "
+                        + agendamento.getServico().getNome() + " de " + agendamento.getCliente().getNome()
+                        + " de " + antes + " para " + quando(tenantId, pedido.inicio()));
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO,
                 usuarioLogado.usuarioId()));
         return AgendamentoMapper.paraResponse(agendamento);
@@ -302,6 +317,19 @@ public class AgendamentoService {
 
         agendamento.setStatus(novo);
         agendamentoRepository.persistAndFlush(agendamento);
+        String acao = switch (novo) {
+            case CANCELADO -> Auditoria.Acao.CANCELOU;
+            case CONCLUIDO -> Auditoria.Acao.CONCLUIU;
+            default -> Auditoria.Acao.NAO_COMPARECEU;
+        };
+        String verbo = switch (novo) {
+            case CANCELADO -> "Cancelou ";
+            case CONCLUIDO -> "Concluiu ";
+            default -> "Registrou falta em ";
+        };
+        auditoria.registrar(tenantId, acao, Auditoria.Entidade.AGENDAMENTO, agendamento.getId(),
+                agendamento.getCliente().getId(), verbo + agendamento.getServico().getNome() + " de "
+                        + agendamento.getCliente().getNome() + ", " + quando(tenantId, agendamento.getInicio()));
         if (novo == StatusAgendamento.CANCELADO) {
             eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CANCELADO,
                 usuarioLogado.usuarioId()));
@@ -373,5 +401,9 @@ public class AgendamentoService {
         }
         String limpo = texto.trim();
         return limpo.isEmpty() ? null : limpo;
+    }
+
+    private String quando(UUID tenantId, OffsetDateTime instante) {
+        return Auditoria.quando(instante, tenantService.porId(tenantId).zoneId());
     }
 }

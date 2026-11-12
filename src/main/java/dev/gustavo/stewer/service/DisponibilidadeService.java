@@ -52,6 +52,12 @@ public class DisponibilidadeService {
     };
 
     @Inject
+    TenantService tenantService;
+
+    @Inject
+    Auditoria auditoria;
+
+    @Inject
     DisponibilidadeRepository disponibilidadeRepository;
 
     @Inject
@@ -99,6 +105,10 @@ public class DisponibilidadeService {
             disponibilidadeRepository.persist(nova);
         }
 
+        auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.HORARIOS, profissionalId, null,
+                "Alterou os horarios de atendimento de " + profissional.getUsuario().getNome() + " ("
+                        + dto.faixas().size() + (dto.faixas().size() == 1 ? " faixa)" : " faixas)"));
+
         // Reler em vez de montar a resposta com a lista recem-criada garante que
         // o PUT devolva exatamente a mesma ordenacao do GET.
         return DisponibilidadeMapper.paraResponses(
@@ -133,6 +143,11 @@ public class DisponibilidadeService {
         // Flush aqui para que id e createdAt gerados pelo Hibernate ja estejam
         // preenchidos quando o mapper montar a resposta e o Location do 201.
         bloqueioRepository.persistAndFlush(bloqueio);
+        auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.BLOQUEIO, bloqueio.getId(), null,
+                "Bloqueou a agenda de " + profissional.getUsuario().getNome() + " de "
+                        + Auditoria.quando(dto.inicio(), tenantService.porId(tenantId).zoneId()) + " a "
+                        + Auditoria.quando(dto.fim(), tenantService.porId(tenantId).zoneId())
+                        + (bloqueio.getMotivo() != null ? " (" + bloqueio.getMotivo() + ")" : ""));
 
         return DisponibilidadeMapper.paraBloqueioResponse(bloqueio);
     }
@@ -151,6 +166,9 @@ public class DisponibilidadeService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Bloqueio", bloqueioId));
 
         bloqueioRepository.softDelete(bloqueio);
+        auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.BLOQUEIO, bloqueioId, null,
+                "Liberou o bloqueio de " + bloqueio.getProfissional().getUsuario().getNome() + " de "
+                        + Auditoria.quando(bloqueio.getInicio(), tenantService.porId(tenantId).zoneId()));
     }
 
     /**
