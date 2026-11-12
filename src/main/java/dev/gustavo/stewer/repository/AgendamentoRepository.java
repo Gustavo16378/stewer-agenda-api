@@ -56,6 +56,13 @@ public class AgendamentoRepository implements TenantScopedRepository<Agendamento
                 .list();
     }
 
+    /** Tudo o que comeca na janela, de todos os profissionais (relatorios). */
+    public List<Agendamento> naJanela(UUID tenantId, OffsetDateTime inicio, OffsetDateTime fim) {
+        return vivos(tenantId, "inicio >= :inicio and inicio < :fim", Sort.by("inicio").ascending(),
+                Parameters.with("inicio", inicio).and("fim", fim))
+                .list();
+    }
+
     public List<Agendamento> doCliente(UUID tenantId, UUID clienteId) {
         return vivos(tenantId, "cliente.id = :cli", Sort.by("inicio").descending(),
                 Parameters.with("cli", clienteId))

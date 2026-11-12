@@ -290,6 +290,32 @@ public class AgendamentoService {
                 .toList();
     }
 
+    /** Mais de um dia de agenda de uma vez: semana, mes. Ate 92 dias por pedido. */
+    public static final int DIAS_MAXIMOS_DO_PERIODO = 92;
+
+    @Transactional
+    public List<AgendamentoResponse> agendaDoPeriodo(UUID tenantId, LocalDate de, LocalDate ate,
+            UUID profissionalIdParam) {
+        if (ate.isBefore(de)) {
+            throw new RegraNegocioException("PERIODO_INVALIDO", "A data final vem antes da inicial");
+        }
+        if (java.time.temporal.ChronoUnit.DAYS.between(de, ate) >= DIAS_MAXIMOS_DO_PERIODO) {
+            throw new RegraNegocioException("PERIODO_LONGO",
+                    "Peca no maximo " + DIAS_MAXIMOS_DO_PERIODO + " dias de agenda por vez");
+        }
+        UUID alvo = resolverProfissionalDaAgenda(tenantId, profissionalIdParam);
+        ZoneId fuso = horariosLivresService.fusoDo(tenantId);
+        OffsetDateTime inicio = de.atStartOfDay(fuso).toOffsetDateTime();
+        OffsetDateTime fim = ate.plusDays(1).atStartOfDay(fuso).toOffsetDateTime();
+        List<Agendamento> lista = agendamentoRepository.doProfissionalNaJanela(tenantId, alvo, inicio, fim);
+        java.util.Set<UUID> jaVieram = agendamentoRepository.clientesComVisitaAntes(tenantId,
+                lista.stream().map(a -> a.getCliente().getId()).collect(java.util.stream.Collectors.toSet()),
+                inicio);
+        return lista.stream()
+                .map(a -> AgendamentoMapper.paraResponse(a, !jaVieram.contains(a.getCliente().getId())))
+                .toList();
+    }
+
     /**
      * Concluir, cancelar ou marcar falta.
      *

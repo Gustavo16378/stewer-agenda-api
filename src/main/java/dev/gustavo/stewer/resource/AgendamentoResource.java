@@ -102,6 +102,21 @@ public class AgendamentoResource {
         return agendamentoService.agendaDoDia(usuarioLogado.tenantId(), data, profissionalId);
     }
 
+    @GET
+    @Path("/agenda/periodo")
+    @RolesAllowed({Role.PROFISSIONAL_STR, Role.ADMIN_STR})
+    @Operation(summary = "Agenda de varios dias (semana, mes), com todos os status",
+            description = "Ate 92 dias por pedido, contados no fuso do estabelecimento.")
+    @SecurityRequirement(name = "bearerAuth")
+    public List<AgendamentoResponse> agendaDoPeriodo(
+            @Parameter(description = "Primeiro dia, YYYY-MM-DD") @QueryParam("de")
+            @NotNull(message = "de e obrigatoria") LocalDate de,
+            @Parameter(description = "Ultimo dia (incluido), YYYY-MM-DD") @QueryParam("ate")
+            @NotNull(message = "ate e obrigatoria") LocalDate ate,
+            @QueryParam("profissionalId") UUID profissionalId) {
+        return agendamentoService.agendaDoPeriodo(usuarioLogado.tenantId(), de, ate, profissionalId);
+    }
+
     @PATCH
     @Path("/{id}/horario")
     @RolesAllowed({Role.CLIENTE_STR, Role.PROFISSIONAL_STR, Role.ADMIN_STR})
