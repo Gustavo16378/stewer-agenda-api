@@ -134,7 +134,7 @@ public class ClienteService {
         // estejam preenchidos quando o mapper montar a resposta.
         anotacaoClienteRepository.persistAndFlush(anotacao);
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.ANOTACAO,
-                anotacao.getId(), clienteId, "Escreveu anotacao de visagismo de " + cliente.getNome());
+                anotacao.getId(), clienteId, "Escreveu anotação de visagismo de " + cliente.getNome());
 
         return AnotacaoMapper.paraResponse(anotacao);
     }
@@ -183,7 +183,7 @@ public class ClienteService {
         anotacao.setTexto(dto.texto().trim());
         anotacaoClienteRepository.persistAndFlush(anotacao);
         auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.ANOTACAO,
-                anotacao.getId(), clienteId, "Editou anotacao de visagismo de " + anotacao.getCliente().getNome());
+                anotacao.getId(), clienteId, "Editou anotação de visagismo de " + anotacao.getCliente().getNome());
         return AnotacaoMapper.paraResponse(anotacao);
     }
 
@@ -192,7 +192,7 @@ public class ClienteService {
         AnotacaoCliente anotacao = exigirAnotacaoPropria(tenantId, clienteId, anotacaoId);
         anotacaoClienteRepository.softDelete(anotacao);
         auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.ANOTACAO,
-                anotacaoId, clienteId, "Apagou anotacao de visagismo de " + anotacao.getCliente().getNome());
+                anotacaoId, clienteId, "Apagou anotação de visagismo de " + anotacao.getCliente().getNome());
     }
 
     private AnotacaoCliente exigirAnotacaoPropria(UUID tenantId, UUID clienteId, UUID anotacaoId) {

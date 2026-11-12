@@ -88,7 +88,7 @@ public class ProfissionalService {
         // INSERT pode sair so no commit e escapar de um try daqui.
         profissionalRepository.persist(profissional);
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.PROFISSIONAL,
-                profissional.getId(), null, "Adicionou " + usuario.getNome() + " a equipe");
+                profissional.getId(), null, "Adicionou " + usuario.getNome() + " à equipe");
 
         return ProfissionalMapper.paraResponse(profissional);
     }

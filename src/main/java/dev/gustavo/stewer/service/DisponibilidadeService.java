@@ -106,7 +106,7 @@ public class DisponibilidadeService {
         }
 
         auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.HORARIOS, profissionalId, null,
-                "Alterou os horarios de atendimento de " + profissional.getUsuario().getNome() + " ("
+                "Alterou os horários de atendimento de " + profissional.getUsuario().getNome() + " ("
                         + dto.faixas().size() + (dto.faixas().size() == 1 ? " faixa)" : " faixas)"));
 
         // Reler em vez de montar a resposta com a lista recem-criada garante que

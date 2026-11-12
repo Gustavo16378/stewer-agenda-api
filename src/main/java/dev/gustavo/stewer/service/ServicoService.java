@@ -57,7 +57,7 @@ public class ServicoService {
         // INSERT pode sair so no commit e escapar de um try daqui.
         servicoRepository.persistAndFlush(servico);
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.SERVICO, servico.getId(), null,
-                "Cadastrou o servico " + servico.getNome() + " (" + Auditoria.reais(servico.getPrecoCentavos())
+                "Cadastrou o serviço " + servico.getNome() + " (" + Auditoria.reais(servico.getPrecoCentavos())
                         + ", " + servico.getDuracaoMinutos() + " min)");
 
         return ServicoMapper.paraResponse(servico);
@@ -75,7 +75,7 @@ public class ServicoService {
         String depois = Auditoria.reais(servico.getPrecoCentavos()) + ", " + servico.getDuracaoMinutos() + " min"
                 + (servico.isAtivo() ? "" : ", oculto");
         auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.SERVICO, servico.getId(), null,
-                "Alterou o servico " + nome + (antes.equals(depois) ? "" : " (" + antes + " para " + depois + ")"));
+                "Alterou o serviço " + nome + (antes.equals(depois) ? "" : " (" + antes + " para " + depois + ")"));
         // A entidade esta gerenciada: o flush existe so para o updatedAt chegar
         // atualizado ao cliente, nao para persistir a mudanca.
         servicoRepository.flush();
@@ -89,7 +89,7 @@ public class ServicoService {
         Servico servico = buscar(tenantId, id);
         servicoRepository.softDelete(servico);
         auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.SERVICO, id, null,
-                "Removeu o servico " + servico.getNome() + " do catalogo");
+                "Removeu o serviço " + servico.getNome() + " do catálogo");
     }
 
     private Servico buscar(UUID tenantId, UUID id) {
