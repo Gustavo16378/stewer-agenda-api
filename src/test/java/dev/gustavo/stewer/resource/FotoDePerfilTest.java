@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class FotoDePerfilTest {
 
     private static final String JPEG = "data:image/jpeg;base64,"
-            + Base64.getEncoder().encodeToString(new byte[] { (byte) 0xFF, (byte) 0xD8, 9, 9 });
+            + Base64.getEncoder().encodeToString(new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 9 });
 
     @Inject
     DadosDeTeste dados;

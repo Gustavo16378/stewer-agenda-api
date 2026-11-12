@@ -221,7 +221,8 @@ class CarteiraDeClientesTest {
     @DisplayName("excluir a conta leva a ficha e as fotos junto (LGPD)")
     void exclusaoLevaFicha() {
         salvarNascimento(joana, "1990-03-20");
-        postarFoto("image/jpeg", Base64.getEncoder().encodeToString(new byte[] { 1, 2 })).statusCode(201);
+        postarFoto("image/jpeg", Base64.getEncoder().encodeToString(
+                new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 2 })).statusCode(201);
 
         given().header("Authorization", "Bearer " + tokenJoana).contentType(ContentType.JSON)
                 .body(Map.of("senha", DadosDeTeste.SENHA))

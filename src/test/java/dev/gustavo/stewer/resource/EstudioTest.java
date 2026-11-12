@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("estudio -- dados, retrato, fotos do trabalho e fotos dos servicos")
 class EstudioTest {
 
-    private static final byte[] BYTES = { (byte) 0xFF, (byte) 0xD8, 1, 2, 3 };
+    private static final byte[] BYTES = { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 1, 2, 3 };
     private static final String JPEG = Base64.getEncoder().encodeToString(BYTES);
 
     @Inject
