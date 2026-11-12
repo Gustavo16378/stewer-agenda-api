@@ -1,9 +1,12 @@
 package dev.gustavo.stewer.dto.auth;
 
+import java.time.LocalDate;
+
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 
 /** Auto-cadastro de cliente. */
@@ -31,5 +34,10 @@ public record RegistrarRequest(
 
         @Schema(description = "Slug do estabelecimento. Omitido, usa o tenant padrao.",
                 example = "stewer-gabriel")
-        String tenantSlug) {
+        String tenantSlug,
+
+        @Past(message = "dataNascimento tem de ser no passado")
+        @Schema(description = "Opcional. Vai para a ficha: o Stewer ve o aniversario no painel.",
+                example = "1994-11-20")
+        LocalDate dataNascimento) {
 }

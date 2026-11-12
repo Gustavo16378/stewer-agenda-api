@@ -1,5 +1,6 @@
 package dev.gustavo.stewer.dto.usuario;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -21,5 +22,7 @@ public record UsuarioResponse(
         @Schema(description = "Recebe lembrete do horario por e-mail")
         boolean lembreteEmail,
         @Schema(description = "Quando a foto de perfil mudou; nulo se nao tem foto")
-        OffsetDateTime fotoVersao) {
+        OffsetDateTime fotoVersao,
+        @Schema(description = "Aniversario informado pelo proprio cliente (ou pela equipe na ficha)")
+        LocalDate dataNascimento) {
 }

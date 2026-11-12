@@ -1,5 +1,7 @@
 package dev.gustavo.stewer.mapper;
 
+import java.time.LocalDate;
+
 import dev.gustavo.stewer.domain.Usuario;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 
@@ -10,6 +12,11 @@ public final class UsuarioMapper {
     }
 
     public static UsuarioResponse paraResponse(Usuario usuario) {
+        return paraResponse(usuario, null);
+    }
+
+    /** Com o aniversario, que mora na ficha do cliente e nao no usuario. */
+    public static UsuarioResponse paraResponse(Usuario usuario, LocalDate dataNascimento) {
         if (usuario == null) {
             return null;
         }
@@ -22,6 +29,7 @@ public final class UsuarioMapper {
                 usuario.getRole(),
                 usuario.getCreatedAt(),
                 usuario.isLembreteEmail(),
-                usuario.getFotoAtualizadaEm());
+                usuario.getFotoAtualizadaEm(),
+                dataNascimento);
     }
 }

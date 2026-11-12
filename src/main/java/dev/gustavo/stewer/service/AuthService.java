@@ -120,6 +120,7 @@ public class AuthService {
         // ViolacaoDeBanco traduz a violacao no mesmo 409 -- no mapper, porque o
         // INSERT pode sair so no commit e escapar de um try daqui.
         usuarioRepository.persist(usuario);
+        guardarNascimento(tenant.getId(), usuario, dto.dataNascimento());
         auditoria.registrarComo(tenant.getId(), usuario.getId(), usuario.getNome(), Role.CLIENTE.name(),
                 Auditoria.Acao.CADASTROU, Auditoria.Entidade.CLIENTE, usuario.getId(), usuario.getId(),
                 usuario.getNome() + " criou a conta pelo app");
@@ -270,9 +271,37 @@ public class AuthService {
 
     /** Usuario do token atual, ja no escopo do tenant da sessao. */
     public UsuarioResponse porId(UUID tenantId, UUID usuarioId) {
-        return usuarioRepository.buscarVivo(tenantId, usuarioId)
-                .map(UsuarioMapper::paraResponse)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuario", usuarioId));
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+        return UsuarioMapper.paraResponse(usuario, nascimentoDe(usuario));
+    }
+
+    /** O aniversario mora na ficha (que a equipe tambem edita). So cliente tem ficha. */
+    private java.time.LocalDate nascimentoDe(Usuario usuario) {
+        if (usuario.getRole() != Role.CLIENTE) {
+            return null;
+        }
+        return fichaRepository.doCliente(usuario.getTenantId(), usuario.getId())
+                .map(dev.gustavo.stewer.domain.FichaCliente::getDataNascimento)
+                .orElse(null);
+    }
+
+    /** Nulo nao mexe: o campo e opcional e quem nao informa nao apaga o que a equipe pos. */
+    private void guardarNascimento(UUID tenantId, Usuario usuario, java.time.LocalDate data) {
+        if (data == null || usuario.getRole() != Role.CLIENTE) {
+            return;
+        }
+        if (data.getYear() < 1900) {
+            throw new RegraNegocioException("NASCIMENTO_INVALIDO", "Confira o ano de nascimento");
+        }
+        dev.gustavo.stewer.domain.FichaCliente ficha = fichaRepository.doCliente(tenantId, usuario.getId())
+                .orElseGet(() -> {
+                    dev.gustavo.stewer.domain.FichaCliente nova = new dev.gustavo.stewer.domain.FichaCliente();
+                    nova.setTenantId(tenantId);
+                    nova.setCliente(usuario);
+                    return nova;
+                });
+        ficha.setDataNascimento(data);
+        fichaRepository.persist(ficha);
     }
 
     /**
@@ -293,6 +322,7 @@ public class AuthService {
         usuario.setEmail(email);
         usuario.setTelefone(normalizarTelefone(dto.telefone()));
         usuarioRepository.persistAndFlush(usuario);
+        guardarNascimento(tenantId, usuario, dto.dataNascimento());
         return montarToken(usuario);
     }
 
@@ -351,7 +381,7 @@ public class AuthService {
         return TokenResponse.de(
                 tokenService.gerar(usuario),
                 tokenService.validadeSegundos(),
-                UsuarioMapper.paraResponse(usuario));
+                UsuarioMapper.paraResponse(usuario, nascimentoDe(usuario)));
     }
 
     static String normalizarEmail(String email) {
