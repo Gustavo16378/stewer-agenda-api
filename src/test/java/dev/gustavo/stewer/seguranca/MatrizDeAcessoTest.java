@@ -24,6 +24,7 @@ import dev.gustavo.stewer.resource.HorariosLivresResource;
 import dev.gustavo.stewer.resource.ImagemResource;
 import dev.gustavo.stewer.resource.PingResource;
 import dev.gustavo.stewer.resource.ProfissionalResource;
+import dev.gustavo.stewer.resource.RelatorioResource;
 import dev.gustavo.stewer.resource.ServicoResource;
 import dev.gustavo.stewer.resource.UsuarioResource;
 import dev.gustavo.stewer.util.DadosDeTeste;
@@ -62,7 +63,7 @@ class MatrizDeAcessoTest {
     private static final List<Class<?>> RECURSOS = List.of(AgendaProfissionalResource.class,
             AgendamentoResource.class, AuditoriaResource.class, AuthResource.class, ClienteResource.class,
             EstudioResource.class, HorariosLivresResource.class, ImagemResource.class, PingResource.class,
-            ProfissionalResource.class, ServicoResource.class, UsuarioResource.class);
+            ProfissionalResource.class, RelatorioResource.class, ServicoResource.class, UsuarioResource.class);
 
     /** Os unicos endpoints abertos sem login. */
     private static final Set<String> PUBLICOS = Set.of(
