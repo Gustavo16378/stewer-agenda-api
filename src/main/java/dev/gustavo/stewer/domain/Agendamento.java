@@ -41,6 +41,18 @@ public class Agendamento extends TenantOwnedEntity {
     @Column(name = "observacao")
     private String observacao;
 
+    /** Quando o lembrete por e-mail saiu; nulo enquanto nao saiu. Remarcar zera. */
+    @Column(name = "lembrete_enviado_em")
+    private OffsetDateTime lembreteEnviadoEm;
+
+    public OffsetDateTime getLembreteEnviadoEm() {
+        return lembreteEnviadoEm;
+    }
+
+    public void setLembreteEnviadoEm(OffsetDateTime lembreteEnviadoEm) {
+        this.lembreteEnviadoEm = lembreteEnviadoEm;
+    }
+
     public Usuario getCliente() {
         return cliente;
     }

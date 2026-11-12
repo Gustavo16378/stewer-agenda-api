@@ -28,6 +28,18 @@ public class Usuario extends TenantOwnedEntity {
     @Column(name = "role", nullable = false, length = 20)
     private Role role;
 
+    /** Recebe lembrete de horario por e-mail. Liga por padrao (V6). */
+    @Column(name = "lembrete_email", nullable = false)
+    private boolean lembreteEmail = true;
+
+    public boolean isLembreteEmail() {
+        return lembreteEmail;
+    }
+
+    public void setLembreteEmail(boolean lembreteEmail) {
+        this.lembreteEmail = lembreteEmail;
+    }
+
     public String getNome() {
         return nome;
     }

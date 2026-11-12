@@ -167,6 +167,8 @@ public class AgendamentoService {
         agendamento.setProfissional(profissional);
         agendamento.setInicio(pedido.inicio());
         agendamento.setFim(pedido.fim());
+        // Horario novo, lembrete novo.
+        agendamento.setLembreteEnviadoEm(null);
         agendamentoRepository.persistAndFlush(agendamento);
 
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO));
