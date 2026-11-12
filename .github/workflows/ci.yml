@@ -1,12 +1,19 @@
 name: CI
 
-# Roda a suite inteira e monta a imagem de producao. Nada e publicado:
-# o deploy quem faz e o Render, a partir do push na main.
+# Roda a suite inteira (com cobertura) e monta a imagem de producao. Nada e
+# publicado: o deploy quem faz e o Render, a partir do push na main.
+#
+# O app (stewer-agenda-app) roda as jornadas E2E contra a main desta API.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   testes:
@@ -33,10 +40,10 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -52,6 +59,27 @@ jobs:
           -Dquarkus.datasource.username=stewer
           -Dquarkus.datasource.password=stewer
 
+      - name: Cobertura
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          raiz = ET.parse('target/jacoco-report/jacoco.xml').getroot()
+          print('### Cobertura (JaCoCo)\n\n| | % | cobertos |\n|---|---|---|')
+          for c in raiz.findall('counter'):
+              if c.get('type') in ('LINE', 'BRANCH', 'METHOD', 'CLASS'):
+                  ok, falta = int(c.get('covered')), int(c.get('missed'))
+                  nome = {'LINE': 'Linhas', 'BRANCH': 'Ramos', 'METHOD': 'Metodos', 'CLASS': 'Classes'}[c.get('type')]
+                  print(f'| {nome} | {100 * ok / (ok + falta):.1f}% | {ok}/{ok + falta} |')
+          PY
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: cobertura-api
+          path: target/jacoco-report
+          retention-days: 14
+
       - name: Relatorio dos testes
         if: always()
         run: |
@@ -66,7 +94,7 @@ jobs:
     name: Build da imagem Docker
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # O driver padrao do Docker nao exporta cache ("Cache export is not
       # supported for the docker driver"). O buildx com o driver
