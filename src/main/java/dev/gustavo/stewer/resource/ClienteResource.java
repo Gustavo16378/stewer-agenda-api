@@ -11,12 +11,20 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.dto.cliente.AniversarianteResponse;
 import dev.gustavo.stewer.dto.cliente.AnotacaoRequest;
 import dev.gustavo.stewer.dto.cliente.AnotacaoResponse;
 import dev.gustavo.stewer.dto.cliente.ClienteDetalheResponse;
 import dev.gustavo.stewer.dto.cliente.ClienteResumoResponse;
+import dev.gustavo.stewer.dto.cliente.ClienteSumidoResponse;
+import dev.gustavo.stewer.dto.cliente.FichaRequest;
+import dev.gustavo.stewer.dto.cliente.FichaResponse;
+import dev.gustavo.stewer.dto.cliente.FotoConteudoResponse;
+import dev.gustavo.stewer.dto.cliente.FotoRequest;
+import dev.gustavo.stewer.dto.cliente.FotoResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
 import dev.gustavo.stewer.service.ClienteService;
+import dev.gustavo.stewer.service.FichaService;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -52,6 +60,9 @@ public class ClienteResource {
     ClienteService clienteService;
 
     @Inject
+    FichaService fichaService;
+
+    @Inject
     UsuarioLogado usuarioLogado;
 
     @GET
@@ -72,6 +83,27 @@ public class ClienteResource {
     }
 
     @GET
+    @Path("/aniversariantes")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Clientes que fazem aniversario no mes",
+            description = "Sem `mes`, usa o mes de hoje no fuso do estabelecimento.")
+    @SecurityRequirement(name = "bearerAuth")
+    public List<AniversarianteResponse> aniversariantes(@QueryParam("mes") Integer mes) {
+        return fichaService.aniversariantes(usuarioLogado.tenantId(), mes);
+    }
+
+    @GET
+    @Path("/sumidos")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Clientes que passaram do proprio ritmo sem voltar",
+            description = "Quem nao tem horario marcado e esta ha mais de 1,5x o intervalo medio dele "
+                    + "sem vir (no minimo 21 dias); com uma visita so, mais de 60 dias.")
+    @SecurityRequirement(name = "bearerAuth")
+    public List<ClienteSumidoResponse> sumidos() {
+        return fichaService.sumidos(usuarioLogado.tenantId());
+    }
+
+    @GET
     @Path("/{id}")
     @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
     @Operation(summary = "Ficha do cliente com o historico de atendimentos")
@@ -82,6 +114,67 @@ public class ClienteResource {
     })
     public ClienteDetalheResponse detalhar(@PathParam("id") UUID id) {
         return clienteService.detalhar(usuarioLogado.tenantId(), id);
+    }
+
+    @PUT
+    @Path("/{id}/ficha")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Salva a ficha do cliente (aniversario, origem, etiquetas, visagismo)",
+            description = "Substitui a ficha inteira: campo vazio apaga o valor.")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Ficha salva"),
+            @APIResponse(responseCode = "404", description = "Cliente inexistente no estabelecimento")
+    })
+    public FichaResponse salvarFicha(@PathParam("id") UUID id,
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") FichaRequest dto) {
+        return fichaService.salvarFicha(usuarioLogado.tenantId(), id, dto);
+    }
+
+    @GET
+    @Path("/{id}/fotos")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Fotos do cliente (sem a imagem), da mais nova para a mais antiga")
+    @SecurityRequirement(name = "bearerAuth")
+    public List<FotoResponse> listarFotos(@PathParam("id") UUID id) {
+        return fichaService.listarFotos(usuarioLogado.tenantId(), id);
+    }
+
+    @POST
+    @Path("/{id}/fotos")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Adiciona uma foto de antes, depois ou outra",
+            description = "A imagem vai em base64 (JPEG, PNG ou WebP, ate 1,5 MB).")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "201", description = "Foto guardada"),
+            @APIResponse(responseCode = "422", description = "Tipo invalido, imagem vazia ou grande demais")
+    })
+    public Response adicionarFoto(@PathParam("id") UUID id,
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") FotoRequest dto,
+            @Context UriInfo uriInfo) {
+        FotoResponse criada = fichaService.adicionarFoto(usuarioLogado.tenantId(), id, dto);
+        URI local = uriInfo.getAbsolutePathBuilder().path(criada.id().toString()).build();
+        return Response.created(local).entity(criada).build();
+    }
+
+    @GET
+    @Path("/{id}/fotos/{fotoId}")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "A imagem da foto, como data URL")
+    @SecurityRequirement(name = "bearerAuth")
+    public FotoConteudoResponse conteudoDaFoto(@PathParam("id") UUID id, @PathParam("fotoId") UUID fotoId) {
+        return fichaService.conteudoDaFoto(usuarioLogado.tenantId(), id, fotoId);
+    }
+
+    @DELETE
+    @Path("/{id}/fotos/{fotoId}")
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Apaga uma foto")
+    @SecurityRequirement(name = "bearerAuth")
+    public Response removerFoto(@PathParam("id") UUID id, @PathParam("fotoId") UUID fotoId) {
+        fichaService.removerFoto(usuarioLogado.tenantId(), id, fotoId);
+        return Response.noContent().build();
     }
 
     @POST

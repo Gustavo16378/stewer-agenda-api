@@ -21,5 +21,7 @@ public record ClienteDetalheResponse(
         String email,
         String telefone,
         OffsetDateTime createdAt,
-        List<AgendamentoResponse> agendamentos) {
+        List<AgendamentoResponse> agendamentos,
+        FichaResponse ficha,
+        MetricasClienteResponse metricas) {
 }

@@ -123,4 +123,34 @@ public class AgendamentoRepository implements TenantScopedRepository<Agendamento
                 .setParameter("antes", antes)
                 .getResultList());
     }
+
+    /**
+     * Ritmo de cada cliente com atendimento concluido: [id, visitas, primeira,
+     * ultima, Usuario]. Base da lista de clientes sumidos.
+     */
+    public List<Object[]> ritmoDeVisitas(UUID tenantId) {
+        return getEntityManager().createQuery("""
+                select a.cliente.id, count(a), min(a.inicio), max(a.inicio), a.cliente
+                  from Agendamento a
+                 where a.tenantId = :tenant and a.deletedAt is null and a.status = :concluido
+                   and a.cliente.deletedAt is null
+                 group by a.cliente.id, a.cliente
+                """, Object[].class)
+                .setParameter("tenant", tenantId)
+                .setParameter("concluido", StatusAgendamento.CONCLUIDO)
+                .getResultList();
+    }
+
+    /** Clientes com algum horario ainda por vir. */
+    public java.util.Set<UUID> clientesComHorarioFuturo(UUID tenantId, OffsetDateTime agora) {
+        return new java.util.HashSet<>(getEntityManager().createQuery("""
+                select distinct a.cliente.id from Agendamento a
+                 where a.tenantId = :tenant and a.deletedAt is null
+                   and a.status = :agendado and a.inicio > :agora
+                """, UUID.class)
+                .setParameter("tenant", tenantId)
+                .setParameter("agendado", StatusAgendamento.AGENDADO)
+                .setParameter("agora", agora)
+                .getResultList());
+    }
 }

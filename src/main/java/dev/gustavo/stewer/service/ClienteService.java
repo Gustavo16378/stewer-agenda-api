@@ -1,10 +1,13 @@
 package dev.gustavo.stewer.service;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import dev.gustavo.stewer.domain.Agendamento;
 import dev.gustavo.stewer.domain.AnotacaoCliente;
+import dev.gustavo.stewer.domain.FichaCliente;
 import dev.gustavo.stewer.domain.Profissional;
 import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.domain.Usuario;
@@ -19,6 +22,7 @@ import dev.gustavo.stewer.mapper.AnotacaoMapper;
 import dev.gustavo.stewer.mapper.ClienteMapper;
 import dev.gustavo.stewer.repository.AgendamentoRepository;
 import dev.gustavo.stewer.repository.AnotacaoClienteRepository;
+import dev.gustavo.stewer.repository.FichaClienteRepository;
 import dev.gustavo.stewer.repository.ProfissionalRepository;
 import dev.gustavo.stewer.repository.UsuarioRepository;
 import dev.gustavo.stewer.security.UsuarioLogado;
@@ -57,6 +61,12 @@ public class ClienteService {
     AnotacaoClienteRepository anotacaoClienteRepository;
 
     @Inject
+    FichaClienteRepository fichaClienteRepository;
+
+    @Inject
+    Auditoria auditoria;
+
+    @Inject
     UsuarioLogado usuarioLogado;
 
     /**
@@ -85,7 +95,9 @@ public class ClienteService {
         exigirEquipeViva();
         Usuario cliente = exigirCliente(tenantId, clienteId);
         List<Agendamento> historico = agendamentoRepository.doCliente(tenantId, clienteId);
-        return ClienteMapper.paraDetalhe(cliente, historico);
+        FichaCliente ficha = fichaClienteRepository.doCliente(tenantId, clienteId).orElse(null);
+        return ClienteMapper.paraDetalhe(cliente, historico, ClienteMapper.paraFicha(ficha),
+                MetricasDoCliente.calcular(historico, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
     /** Anotacoes vivas do cliente, da mais nova para a mais antiga. */
@@ -121,6 +133,8 @@ public class ClienteService {
         // Flush aqui para que createdAt/updatedAt gerados pelo Hibernate ja
         // estejam preenchidos quando o mapper montar a resposta.
         anotacaoClienteRepository.persistAndFlush(anotacao);
+        auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.ANOTACAO,
+                anotacao.getId(), clienteId, "Escreveu anotacao de visagismo de " + cliente.getNome());
 
         return AnotacaoMapper.paraResponse(anotacao);
     }
@@ -168,12 +182,17 @@ public class ClienteService {
         AnotacaoCliente anotacao = exigirAnotacaoPropria(tenantId, clienteId, anotacaoId);
         anotacao.setTexto(dto.texto().trim());
         anotacaoClienteRepository.persistAndFlush(anotacao);
+        auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.ANOTACAO,
+                anotacao.getId(), clienteId, "Editou anotacao de visagismo de " + anotacao.getCliente().getNome());
         return AnotacaoMapper.paraResponse(anotacao);
     }
 
     @Transactional
     public void apagarAnotacao(UUID tenantId, UUID clienteId, UUID anotacaoId) {
-        anotacaoClienteRepository.softDelete(exigirAnotacaoPropria(tenantId, clienteId, anotacaoId));
+        AnotacaoCliente anotacao = exigirAnotacaoPropria(tenantId, clienteId, anotacaoId);
+        anotacaoClienteRepository.softDelete(anotacao);
+        auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.ANOTACAO,
+                anotacaoId, clienteId, "Apagou anotacao de visagismo de " + anotacao.getCliente().getNome());
     }
 
     private AnotacaoCliente exigirAnotacaoPropria(UUID tenantId, UUID clienteId, UUID anotacaoId) {
@@ -188,7 +207,7 @@ public class ClienteService {
         return anotacao;
     }
 
-    private void exigirEquipeViva() {
+    void exigirEquipeViva() {
         if (usuarioLogado.role() != Role.PROFISSIONAL) {
             return;
         }
@@ -197,7 +216,7 @@ public class ClienteService {
                         "Voce nao faz mais parte da equipe deste estabelecimento"));
     }
 
-    private Usuario exigirCliente(UUID tenantId, UUID clienteId) {
+    Usuario exigirCliente(UUID tenantId, UUID clienteId) {
         return usuarioRepository.buscarVivoComRole(tenantId, clienteId, Role.CLIENTE)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteId));
     }

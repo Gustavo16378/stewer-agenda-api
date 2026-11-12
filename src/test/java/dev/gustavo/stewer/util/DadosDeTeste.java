@@ -66,7 +66,7 @@ public class DadosDeTeste {
     /** Zera o banco entre testes, respeitando a ordem das FKs. */
     @Transactional
     public void limpar() {
-        em.createNativeQuery("TRUNCATE TABLE dispositivo, codigo_redefinicao_senha, anotacao_cliente, agendamento, bloqueio, "
+        em.createNativeQuery("TRUNCATE TABLE evento_auditoria, foto_cliente, ficha_cliente, dispositivo, codigo_redefinicao_senha, anotacao_cliente, agendamento, bloqueio, "
                 + "disponibilidade, servico, profissional, usuario, tenant CASCADE")
                 .executeUpdate();
     }
