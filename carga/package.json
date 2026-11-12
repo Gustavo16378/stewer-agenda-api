@@ -1,0 +1,12 @@
+{
+  "name": "stewer-agenda-api-carga",
+  "private": true,
+  "type": "module",
+  "description": "Carga e estresse da API (autocannon). Roda contra uma API ja no ar.",
+  "scripts": {
+    "carga": "node carga.mjs"
+  },
+  "dependencies": {
+    "autocannon": "^8.0.0"
+  }
+}
