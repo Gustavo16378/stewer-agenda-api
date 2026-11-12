@@ -72,7 +72,7 @@ Sai uma linha embaralhada de uns 64 caracteres. **Guarde.** É o seu `JWT_SECRET
 No Windows sem `openssl`, use o PowerShell:
 
 ```powershell
-[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
 ```
 
 ---
@@ -126,6 +126,7 @@ O que você quer ver, nesta ordem:
 Successfully applied 4 migrations to schema "public", now at version v5
 Estabelecimento 'Stewer Gabriel' (slug 'stewer-gabriel', fuso America/Araguaina) criado na inicializacao.
 Administrador inicial 'seu@email.com' criado na inicializacao.
+Ficha de profissional de 'seu@email.com' criada, atendendo de segunda a sabado, 09:00-19:00.
 stewer-agenda-api 1.0.0-SNAPSHOT on JVM ... started in 75.0s. Listening on: http://0.0.0.0:8080
 Profile prod activated.
 ```
@@ -272,7 +273,73 @@ EXPO_PUBLIC_API_URL=https://SUA-URL.onrender.com
 
 ---
 
-## 9. Quando vale sair do gratuito
+## 9. Publicar o app web no Cloudflare Pages
+
+A versão web do app serve para testar no navegador e também hospeda as páginas de
+**Termos**, **Privacidade** e **Excluir conta**, que as lojas pedem.
+
+1. Em **dash.cloudflare.com** → **Workers & Pages** → **Create** → **Pages** → conecte o
+   GitHub e escolha **stewer-agenda-app**.
+2. **Build command**: `npm run build` · **Build output directory**: `dist`
+3. Em **Environment variables**, para Production e Preview:
+   - `EXPO_PUBLIC_API_URL` = a URL da API no Render (sem barra no fim)
+   - `NODE_VERSION` = `22`
+4. Salve e faça o deploy. O endereço sai como `https://<projeto>.pages.dev`.
+5. No Render, em **Environment**, preencha `CORS_ORIGINS` com esse endereço (sem barra no
+   fim). Sem isso o navegador bloqueia as chamadas para a API. O app de celular não precisa.
+
+Cada push no `main` do app publica de novo, sozinho.
+
+---
+
+## 10. Ligar o e-mail (esqueci a senha e lembrete)
+
+Sem SMTP a API funciona, mas **não manda e-mail**: o "esqueci a senha" responde normal e
+nada chega, e o lembrete do horário não sai. O log avisa: `E-mail desligado`.
+
+O caminho gratuito é o **Brevo** (300 e-mails por dia no plano grátis):
+
+1. Crie a conta em **brevo.com**.
+2. Em **Senders, Domains & Dedicated IPs** → **Senders**, cadastre e confirme o e-mail que
+   vai aparecer como remetente.
+3. Em **SMTP & API** → **SMTP**, gere uma **SMTP key**.
+4. No Render, em **Environment**, adicione:
+
+| Variável | Valor |
+|---|---|
+| `EMAIL_HABILITADO` | `true` |
+| `SMTP_HOST` | `smtp-relay.brevo.com` |
+| `SMTP_PORTA` | `587` |
+| `SMTP_USUARIO` | o login SMTP que o Brevo mostra |
+| `SMTP_SENHA` | a SMTP key |
+| `EMAIL_REMETENTE` | `Stewer Gabriel <o-email-confirmado@...>` |
+
+5. **Save, rebuild, and deploy**. Teste pelo app: tela de login → **Esqueci minha senha**.
+
+O lembrete sai de hora em hora para quem tem horário nas próximas 24 horas (e não marcou
+há menos de uma hora). De hora em hora, e não a cada poucos minutos, de propósito: cada
+rodada acorda o banco do Neon, e acordá-lo o tempo todo gastaria a cota grátis.
+
+---
+
+## 11. Backup semanal do banco
+
+O Neon grátis guarda pouco histórico para restaurar. O repositório já tem um workflow que
+faz um backup toda segunda-feira, **criptografado** (o repositório é público).
+
+1. No GitHub, **stewer-agenda-api** → **Settings** → **Secrets and variables** → **Actions**
+   → aba **Secrets** → **New repository secret**:
+   - `BACKUP_DATABASE_URL` = a mesma connection string do Neon
+   - `BACKUP_SENHA` = uma senha longa só para os backups. **Guarde fora do GitHub**: sem
+     ela o backup não abre.
+2. **Actions** → **Backup do banco** → **Run workflow** para testar.
+
+O arquivo fica 30 dias como artefato da execução. Para restaurar, veja o topo de
+`.github/workflows/backup.yml`.
+
+---
+
+## 12. Quando vale sair do gratuito
 
 O que vai apertar primeiro, em ordem:
 
