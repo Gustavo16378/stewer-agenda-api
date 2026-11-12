@@ -1,5 +1,6 @@
 package dev.gustavo.stewer.dto.usuario;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import dev.gustavo.stewer.domain.Role;
@@ -14,5 +15,7 @@ public record UsuarioResponse(
         String nome,
         String email,
         String telefone,
-        Role role) {
+        Role role,
+        @Schema(description = "Quando a conta foi criada")
+        OffsetDateTime criadoEm) {
 }

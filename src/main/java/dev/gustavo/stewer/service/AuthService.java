@@ -1,5 +1,6 @@
 package dev.gustavo.stewer.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import dev.gustavo.stewer.domain.Role;
@@ -8,6 +9,8 @@ import dev.gustavo.stewer.domain.Usuario;
 import dev.gustavo.stewer.dto.auth.LoginRequest;
 import dev.gustavo.stewer.dto.auth.RegistrarRequest;
 import dev.gustavo.stewer.dto.auth.TokenResponse;
+import dev.gustavo.stewer.dto.usuario.AtualizarPerfilRequest;
+import dev.gustavo.stewer.dto.usuario.TrocarSenhaRequest;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 import dev.gustavo.stewer.exception.AutenticacaoException;
 import dev.gustavo.stewer.exception.ConflitoException;
@@ -83,6 +86,49 @@ public class AuthService {
     public UsuarioResponse porId(UUID tenantId, UUID usuarioId) {
         return usuarioRepository.buscarVivo(tenantId, usuarioId)
                 .map(UsuarioMapper::paraResponse)
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuario", usuarioId));
+    }
+
+    /**
+     * Corrige nome, e-mail e telefone. Devolve um token novo porque nome e
+     * e-mail viajam no token atual e a tela leria os antigos ate o proximo login.
+     */
+    @Transactional
+    public TokenResponse atualizarPerfil(UUID tenantId, UUID usuarioId, AtualizarPerfilRequest dto) {
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+
+        String email = normalizarEmail(dto.email());
+        if (!email.equals(usuario.getEmail())
+                && usuarioRepository.emailEmUso(tenantId, email)) {
+            throw new ConflitoException("EMAIL_EM_USO", "Ja existe uma conta com este e-mail");
+        }
+
+        usuario.setNome(dto.nome().trim());
+        usuario.setEmail(email);
+        usuario.setTelefone(normalizarTelefone(dto.telefone()));
+        usuarioRepository.persistAndFlush(usuario);
+        return montarToken(usuario);
+    }
+
+    @Transactional
+    public void trocarSenha(UUID tenantId, UUID usuarioId, TrocarSenhaRequest dto) {
+        Usuario usuario = exigirVivo(tenantId, usuarioId);
+        if (!BcryptUtil.matches(dto.senhaAtual(), usuario.getSenhaHash())) {
+            throw new RegraNegocioException("SENHA_ATUAL_INCORRETA", "A senha atual nao confere");
+        }
+        usuario.setSenhaHash(BcryptUtil.bcryptHash(dto.novaSenha()));
+        usuarioRepository.persist(usuario);
+    }
+
+    /** Pessoas do estabelecimento, para o admin escolher quem vira profissional. */
+    public List<UsuarioResponse> buscarPessoas(UUID tenantId, String busca, int pagina, int tamanho) {
+        return usuarioRepository.buscarTodos(tenantId, busca, pagina, tamanho).stream()
+                .map(UsuarioMapper::paraResponse)
+                .toList();
+    }
+
+    private Usuario exigirVivo(UUID tenantId, UUID usuarioId) {
+        return usuarioRepository.buscarVivo(tenantId, usuarioId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuario", usuarioId));
     }
 

@@ -51,4 +51,17 @@ public class UsuarioRepository implements TenantScopedRepository<Usuario> {
                 .page(pagina, tamanho)
                 .list();
     }
+
+    /** Todas as pessoas do estabelecimento, de qualquer papel, para o admin escolher por nome. */
+    public List<Usuario> buscarTodos(UUID tenantId, String busca, int pagina, int tamanho) {
+        Sort ordem = Sort.by("nome").ascending();
+        if (busca == null || busca.isBlank()) {
+            return vivos(tenantId, ordem).page(pagina, tamanho).list();
+        }
+        String termo = "%" + busca.trim().toLowerCase() + "%";
+        return vivos(tenantId, "lower(nome) like :termo or lower(email) like :termo",
+                ordem, Parameters.with("termo", termo))
+                .page(pagina, tamanho)
+                .list();
+    }
 }

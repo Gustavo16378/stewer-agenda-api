@@ -19,6 +19,7 @@ public final class UsuarioMapper {
                 usuario.getNome(),
                 usuario.getEmail(),
                 usuario.getTelefone(),
-                usuario.getRole());
+                usuario.getRole(),
+                usuario.getCreatedAt());
     }
 }

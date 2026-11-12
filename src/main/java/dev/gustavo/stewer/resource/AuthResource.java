@@ -9,6 +9,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import dev.gustavo.stewer.dto.auth.LoginRequest;
 import dev.gustavo.stewer.dto.auth.RegistrarRequest;
 import dev.gustavo.stewer.dto.auth.TokenResponse;
+import dev.gustavo.stewer.dto.usuario.AtualizarPerfilRequest;
+import dev.gustavo.stewer.dto.usuario.TrocarSenhaRequest;
 import dev.gustavo.stewer.dto.usuario.UsuarioResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
 import dev.gustavo.stewer.service.AuthService;
@@ -21,6 +23,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
@@ -70,5 +73,35 @@ public class AuthResource {
     })
     public TokenResponse login(@Valid @NotNull(message = "corpo da requisicao e obrigatorio") LoginRequest dto) {
         return authService.login(dto);
+    }
+
+    @PUT
+    @Path("/eu")
+    @Authenticated
+    @Operation(summary = "Corrige nome, e-mail e telefone do usuario logado",
+            description = "Devolve um token novo: nome e e-mail viajam no token.")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Dados atualizados, com token novo"),
+            @APIResponse(responseCode = "409", description = "E-mail ja usado por outra conta")
+    })
+    public TokenResponse atualizarPerfil(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") AtualizarPerfilRequest dto) {
+        return authService.atualizarPerfil(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+    }
+
+    @PUT
+    @Path("/eu/senha")
+    @Authenticated
+    @Operation(summary = "Troca a senha, exigindo a atual")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "204", description = "Senha trocada"),
+            @APIResponse(responseCode = "422", description = "Senha atual incorreta")
+    })
+    public Response trocarSenha(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") TrocarSenhaRequest dto) {
+        authService.trocarSenha(usuarioLogado.tenantId(), usuarioLogado.usuarioId(), dto);
+        return Response.noContent().build();
     }
 }
