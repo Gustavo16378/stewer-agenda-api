@@ -369,3 +369,23 @@ de um estúdio com um profissional.
 ---
 
 Desenvolvido por **Gustavo Dev** — https://gustavodev.dev/
+
+## 13. Perdi a senha do dono
+
+Enquanto o e-mail (passo 10) não estiver ligado, o "Esqueci minha senha" não chega. Para
+recuperar o acesso do administrador sem mexer no banco na mão:
+
+1. Descubra o e-mail do dono no Neon: **SQL Editor** e rode
+   `select nome, email from usuario where role = 'ADMIN' and deleted_at is null;`
+2. No Render, em **Environment** do `stewer-agenda-api`, adicione três variáveis:
+   - `BOOTSTRAP_ADMIN_EMAIL` = o e-mail do passo 1
+   - `BOOTSTRAP_ADMIN_SENHA` = a senha nova (mínimo 8 caracteres)
+   - `BOOTSTRAP_ADMIN_REDEFINIR_SENHA` = `true`
+3. Salve. O Render sobe a API de novo e, na subida, troca a senha. No log aparece
+   `Senha do administrador '...' redefinida na inicializacao`.
+4. Entre no app com o e-mail e a senha nova.
+5. **Apague as três variáveis** e salve de novo. Enquanto elas existirem, toda subida
+   volta a senha para a das variáveis.
+
+A troca só vale para quem já é administrador: um e-mail de cliente nessa variável é
+ignorado (e avisado no log).

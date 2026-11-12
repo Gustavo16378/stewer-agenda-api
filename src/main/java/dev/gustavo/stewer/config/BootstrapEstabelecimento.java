@@ -121,6 +121,14 @@ public class BootstrapEstabelecimento {
      * consegue agendar, e criar a ficha pelo app exigiria alguem que ja seja
      * profissional ou admin com acesso a lista de usuarios.
      */
+    /**
+     * Recuperacao de acesso: com isto ligado, se o e-mail configurado ja for de um ADMIN,
+     * a senha dele passa a ser a configurada. Para quem perdeu a senha do dono sem e-mail
+     * de recuperacao funcionando. Liga, sobe, entra, e desliga de novo.
+     */
+    @ConfigProperty(name = "stewer.bootstrap.admin.redefinir-senha", defaultValue = "false")
+    boolean redefinirSenhaDoAdmin;
+
     @ConfigProperty(name = "stewer.bootstrap.admin.profissional", defaultValue = "true")
     boolean adminTambemAtende;
 
@@ -250,20 +258,15 @@ public class BootstrapEstabelecimento {
     }
 
     private void criarAdminSeFaltar(Tenant tenant, String email) {
-        if (usuarioRepository.porEmail(tenant.getId(), email).isPresent()) {
+        java.util.Optional<Usuario> existente = usuarioRepository.porEmail(tenant.getId(), email);
+        if (existente.isPresent()) {
+            if (redefinirSenhaDoAdmin) {
+                redefinirSenha(existente.get(), email);
+            }
             return;
         }
 
-        String senha = adminSenha.map(String::trim).orElse("");
-        if (senha.length() < SENHA_MINIMA) {
-            // Metade da configuracao presente e pior do que nenhuma: alguem quis
-            // criar o admin e nao conseguiu. Falhar no boot e mais barato do que
-            // descobrir em producao que ninguem consegue administrar o estudio.
-            throw new IllegalStateException(
-                    "stewer.bootstrap.admin.email foi configurado, mas a senha nao: defina "
-                            + "stewer.bootstrap.admin.senha com no minimo " + SENHA_MINIMA
-                            + " caracteres (variavel BOOTSTRAP_ADMIN_SENHA).");
-        }
+        String senha = senhaConfigurada();
 
         Usuario admin = new Usuario();
         admin.setTenantId(tenant.getId());
@@ -276,5 +279,31 @@ public class BootstrapEstabelecimento {
         // O e-mail entra no log para que o operador confirme quem foi criado.
         // A senha NAO: ela veio de variavel de ambiente e nao volta por aqui.
         LOG.infof("Administrador inicial '%s' criado na inicializacao.", email);
+    }
+
+    private void redefinirSenha(Usuario usuario, String email) {
+        if (usuario.getRole() != Role.ADMIN) {
+            LOG.warnf("Redefinicao de senha ignorada: '%s' nao e administrador.", email);
+            return;
+        }
+        usuario.setSenhaHash(BcryptUtil.bcryptHash(senhaConfigurada()));
+        usuarioRepository.persist(usuario);
+        LOG.warnf("Senha do administrador '%s' redefinida na inicializacao. "
+                + "Desligue BOOTSTRAP_ADMIN_REDEFINIR_SENHA e apague BOOTSTRAP_ADMIN_SENHA.", email);
+    }
+
+    /** A senha das variaveis de ambiente, ja conferida (minimo de 8 caracteres). */
+    private String senhaConfigurada() {
+        String senha = adminSenha.map(String::trim).orElse("");
+        if (senha.length() < SENHA_MINIMA) {
+            // Metade da configuracao presente e pior do que nenhuma: alguem quis
+            // criar (ou recuperar) o admin e nao conseguiu. Falhar no boot e mais barato
+            // do que descobrir em producao que ninguem consegue administrar o estudio.
+            throw new IllegalStateException(
+                    "stewer.bootstrap.admin.email foi configurado, mas a senha nao: defina "
+                            + "stewer.bootstrap.admin.senha com no minimo " + SENHA_MINIMA
+                            + " caracteres (variavel BOOTSTRAP_ADMIN_SENHA).");
+        }
+        return senha;
     }
 }
