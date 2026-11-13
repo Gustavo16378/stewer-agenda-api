@@ -303,8 +303,12 @@ nada chega, e o lembrete do horário não sai. O log avisa: `E-mail desligado`.
 O caminho gratuito é o **Brevo** (300 e-mails por dia no plano grátis):
 
 1. Crie a conta em **brevo.com**.
-2. Em **Senders, Domains & Dedicated IPs** → **Senders**, cadastre e confirme o e-mail que
-   vai aparecer como remetente.
+2. Em **Remetentes, domínio, IPs** → **Domínios**, adicione o domínio (aqui,
+   `stewergabriel.com`), escolha o método **Manual** e crie na Cloudflare os 4 registros que
+   o Brevo mostrar: o TXT `brevo-code` na raiz, os dois CNAME `brevo1._domainkey` e
+   `brevo2._domainkey` (com a nuvem **cinza**, "DNS only") e o TXT `_dmarc`. Depois,
+   **Verificar registros** e **Autenticar domínio**. Com o domínio autenticado, qualquer
+   endereço `@stewergabriel.com` pode ser remetente, sem caixa de entrada de verdade.
 3. Em **SMTP & API** → **SMTP**, gere uma **SMTP key**.
 4. No Render, em **Environment**, adicione:
 
@@ -315,7 +319,7 @@ O caminho gratuito é o **Brevo** (300 e-mails por dia no plano grátis):
 | `SMTP_PORTA` | `587` |
 | `SMTP_USUARIO` | o login SMTP que o Brevo mostra |
 | `SMTP_SENHA` | a SMTP key |
-| `EMAIL_REMETENTE` | `Stewer Gabriel <o-email-confirmado@...>` |
+| `EMAIL_REMETENTE` | opcional; o padrão é `Stewer Gabriel <nao-responda@stewergabriel.com>` |
 
 5. **Save, rebuild, and deploy**. Teste pelo app: tela de login → **Esqueci minha senha**.
 
