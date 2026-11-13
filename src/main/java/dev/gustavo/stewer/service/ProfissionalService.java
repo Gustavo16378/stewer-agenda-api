@@ -3,15 +3,18 @@ package dev.gustavo.stewer.service;
 import java.util.List;
 import java.util.UUID;
 
+import dev.gustavo.stewer.domain.ImagemPublica;
 import dev.gustavo.stewer.domain.Profissional;
 import dev.gustavo.stewer.domain.Role;
 import dev.gustavo.stewer.domain.Usuario;
+import dev.gustavo.stewer.dto.estudio.ImagemRequest;
 import dev.gustavo.stewer.dto.profissional.ProfissionalRequest;
 import dev.gustavo.stewer.dto.profissional.ProfissionalResponse;
 import dev.gustavo.stewer.exception.ConflitoException;
 import dev.gustavo.stewer.exception.RecursoNaoEncontradoException;
 import dev.gustavo.stewer.exception.RegraNegocioException;
 import dev.gustavo.stewer.mapper.ProfissionalMapper;
+import dev.gustavo.stewer.repository.ImagemPublicaRepository;
 import dev.gustavo.stewer.repository.ProfissionalRepository;
 import dev.gustavo.stewer.repository.UsuarioRepository;
 
@@ -37,6 +40,12 @@ public class ProfissionalService {
 
     @Inject
     UsuarioRepository usuarioRepository;
+
+    @Inject
+    EstudioService estudioService;
+
+    @Inject
+    ImagemPublicaRepository imagemRepository;
 
     /**
      * Equipe do estabelecimento, ordenada pelo nome do usuario.
@@ -118,6 +127,47 @@ public class ProfissionalService {
                         + (profissional.isAtivo() ? "" : " (inativo)"));
 
         return ProfissionalMapper.paraResponse(profissional);
+    }
+
+    /**
+     * Poe uma foto so da equipe, no lugar da foto de perfil da conta. A anterior
+     * (se houver) sai. A foto fica publica pelo id, como as do estudio: e a que o
+     * cliente ve ao escolher com quem marcar.
+     */
+    @Transactional
+    public ProfissionalResponse trocarFoto(UUID tenantId, UUID id, ImagemRequest dto) {
+        Profissional profissional = buscar(tenantId, id);
+        apagarFotoPropria(tenantId, profissional);
+        ImagemPublica imagem = estudioService.nova(tenantId, ImagemPublica.Tipo.PROFISSIONAL, null, dto);
+        profissional.setFotoImagemId(imagem.getId());
+        profissionalRepository.persist(profissional);
+        auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.PROFISSIONAL,
+                profissional.getId(), null, "Trocou a foto de " + profissional.getUsuario().getNome() + " na equipe");
+        return ProfissionalMapper.paraResponse(profissional);
+    }
+
+    /** Tira a foto propria: a ficha volta a usar a foto de perfil da conta. */
+    @Transactional
+    public ProfissionalResponse tirarFoto(UUID tenantId, UUID id) {
+        Profissional profissional = buscar(tenantId, id);
+        if (apagarFotoPropria(tenantId, profissional)) {
+            profissional.setFotoImagemId(null);
+            profissionalRepository.persist(profissional);
+            auditoria.registrar(tenantId, Auditoria.Acao.ALTEROU, Auditoria.Entidade.PROFISSIONAL,
+                    profissional.getId(), null,
+                    "Voltou a usar a foto de perfil de " + profissional.getUsuario().getNome() + " na equipe");
+        }
+        return ProfissionalMapper.paraResponse(profissional);
+    }
+
+    private boolean apagarFotoPropria(UUID tenantId, Profissional profissional) {
+        if (profissional.getFotoImagemId() == null) {
+            return false;
+        }
+        imagemRepository.buscarVivo(tenantId, profissional.getFotoImagemId())
+                .filter(i -> i.getTipo() == ImagemPublica.Tipo.PROFISSIONAL)
+                .ifPresent(imagemRepository::softDelete);
+        return true;
     }
 
     /**

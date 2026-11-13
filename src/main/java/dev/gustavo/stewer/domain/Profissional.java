@@ -25,8 +25,20 @@ public class Profissional extends TenantOwnedEntity {
     @Column(name = "foto_url", length = 500)
     private String fotoUrl;
 
+    /** Foto propria da equipe (imagem_publica). Nula: vale a foto de perfil da conta. */
+    @Column(name = "foto_imagem_id")
+    private java.util.UUID fotoImagemId;
+
     @Column(name = "ativo", nullable = false)
     private boolean ativo = true;
+
+    public java.util.UUID getFotoImagemId() {
+        return fotoImagemId;
+    }
+
+    public void setFotoImagemId(java.util.UUID fotoImagemId) {
+        this.fotoImagemId = fotoImagemId;
+    }
 
     public Usuario getUsuario() {
         return usuario;

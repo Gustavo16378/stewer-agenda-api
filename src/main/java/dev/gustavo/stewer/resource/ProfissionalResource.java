@@ -12,6 +12,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import dev.gustavo.stewer.domain.Role;
+import dev.gustavo.stewer.dto.estudio.ImagemRequest;
 import dev.gustavo.stewer.dto.profissional.ProfissionalRequest;
 import dev.gustavo.stewer.dto.profissional.ProfissionalResponse;
 import dev.gustavo.stewer.security.UsuarioLogado;
@@ -115,5 +116,33 @@ public class ProfissionalResource {
     public Response remover(@PathParam("id") UUID id) {
         profissionalService.remover(usuarioLogado.tenantId(), id);
         return Response.noContent().build();
+    }
+
+    @PUT
+    @Path("/{id}/foto")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Poe uma foto so da equipe, no lugar da foto de perfil da conta")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Foto trocada"),
+            @APIResponse(responseCode = "422", description = "Arquivo que nao e imagem, ou grande demais"),
+            @APIResponse(responseCode = "404", description = "Profissional inexistente ou removido")
+    })
+    public ProfissionalResponse trocarFoto(@PathParam("id") UUID id,
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio") ImagemRequest dto) {
+        return profissionalService.trocarFoto(usuarioLogado.tenantId(), id, dto);
+    }
+
+    @DELETE
+    @Path("/{id}/foto")
+    @RolesAllowed({Role.ADMIN_STR})
+    @Operation(summary = "Tira a foto da equipe: volta a valer a foto de perfil da conta")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Foto retirada"),
+            @APIResponse(responseCode = "404", description = "Profissional inexistente ou removido")
+    })
+    public ProfissionalResponse tirarFoto(@PathParam("id") UUID id) {
+        return profissionalService.tirarFoto(usuarioLogado.tenantId(), id);
     }
 }

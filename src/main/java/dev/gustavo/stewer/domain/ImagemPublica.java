@@ -21,7 +21,9 @@ public class ImagemPublica extends TenantOwnedEntity {
     public enum Tipo {
         RETRATO,
         TRABALHO,
-        SERVICO
+        SERVICO,
+        /** Foto propria de um profissional da equipe, no lugar da foto de perfil. */
+        PROFISSIONAL
     }
 
     @Enumerated(EnumType.STRING)

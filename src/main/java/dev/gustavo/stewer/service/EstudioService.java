@@ -124,7 +124,7 @@ public class EstudioService {
     @Transactional
     public void removerFoto(UUID tenantId, UUID fotoId) {
         ImagemPublica imagem = imagemRepository.buscarVivo(tenantId, fotoId)
-                .filter(i -> i.getTipo() != ImagemPublica.Tipo.SERVICO)
+                .filter(i -> i.getTipo() == ImagemPublica.Tipo.RETRATO || i.getTipo() == ImagemPublica.Tipo.TRABALHO)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Foto", fotoId));
         imagemRepository.softDelete(imagem);
         auditoria.registrar(tenantId, Auditoria.Acao.REMOVEU, Auditoria.Entidade.ESTUDIO, fotoId, null,
@@ -181,7 +181,7 @@ public class EstudioService {
         return imagem;
     }
 
-    private ImagemPublica nova(UUID tenantId, ImagemPublica.Tipo tipo, Servico servico, ImagemRequest dto) {
+    ImagemPublica nova(UUID tenantId, ImagemPublica.Tipo tipo, Servico servico, ImagemRequest dto) {
         ImagemRecebida.Imagem recebida = ImagemRecebida.decodificar(dto.tipoConteudo(), dto.conteudoBase64(),
                 FOTO_MAXIMA, "1,5 MB");
         ImagemPublica imagem = new ImagemPublica();
