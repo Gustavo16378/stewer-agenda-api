@@ -78,11 +78,14 @@ public class LembreteDeHorario {
             String quando = a.getInicio().atZoneSameInstant(tenant.zoneId()).format(QUANDO);
             Modelos.Email email = Modelos.lembrete(tenant.getNome(), a.getCliente().getNome(),
                     a.getServico().getNome(), a.getProfissional().getUsuario().getNome(), quando);
-            if (envioDeEmail.enviar(a.getCliente().getEmail(), email.assunto(), email.texto(),
+            if (!envioDeEmail.enviar(a.getCliente().getEmail(), email.assunto(), email.texto(),
                     email.html())) {
-                a.setLembreteEnviadoEm(agora);
-                enviados++;
+                // Um envio falhou: o SMTP provavelmente esta fora. Insistir em cada um
+                // seguraria a transacao ate o limite; os que faltam saem na proxima rodada.
+                break;
             }
+            a.setLembreteEnviadoEm(agora);
+            enviados++;
         }
         if (enviados > 0) {
             LOG.infof("%d lembrete(s) de horario enviados.", enviados);
