@@ -4,6 +4,9 @@ name: Manter a API acordada
 # leva cerca de um minuto para acordar. Este workflow bate no endpoint leve de
 # 10 em 10 minutos para que o primeiro cliente do dia nao espere esse minuto.
 #
+# Este workflow e a RESERVA. O ping principal e um job no cron-job.org, porque
+# o agendamento do GitHub chegou a rodar so a cada poucas horas (DEPLOY.md).
+#
 # /ping NAO toca no banco, de proposito: se tocasse, manteria o compute do Neon
 # acordado 24h por dia e as 100 CU-hours do mes acabariam na primeira quinzena.
 #
@@ -14,8 +17,7 @@ name: Manter a API acordada
 #     longa.
 #   - o GitHub DESATIVA workflows agendados depois de 60 dias sem commit no
 #     repositorio. Um repositorio parado simplesmente para de pingar, sem
-#     avisar. Reative no painel de Actions, ou use o cron-job.org como reforco
-#     (passo a passo em DEPLOY.md).
+#     avisar. Reative no painel de Actions.
 on:
   schedule:
     - cron: '*/10 * * * *'

@@ -204,8 +204,27 @@ variáveis não são mais necessárias.
 ## 7. Manter a API acordada
 
 A instância gratuita **dorme depois de 15 minutos sem tráfego** e leva cerca de um minuto
-para voltar. Um workflow já pronto no repositório bate em `/ping` de 10 em 10 minutos para
-evitar isso.
+para voltar. Para o primeiro cliente do dia não esperar, alguém precisa bater em `/ping` de
+10 em 10 minutos. O `/ping` não toca no banco, então não gasta horas do Neon.
+
+### Principal: cron-job.org
+
+É o que está ligado hoje (job **Stewer API - manter acordada**). Gratuito e pontual:
+
+1. Acesse **cron-job.org** e entre na conta.
+2. **Create cronjob**.
+3. **Title**: `Stewer API - manter acordada` · **URL**: `https://SUA-URL.onrender.com/ping`
+4. Em **Execution schedule**, escolha **Every 10 minutes**.
+5. **Create**.
+
+Deu certo se o **History** do job mostrar `200` nas execuções.
+
+### Reserva: workflow do GitHub
+
+O repositório também traz um workflow que faz o mesmo ping. Ele fica como reserva, porque o
+agendamento do GitHub não é confiável para isso: em novembro de 2026 ele estava rodando a
+cada poucas horas em vez de a cada 10 minutos, e o servidor dormia no meio. Além disso, o
+GitHub desativa workflows agendados depois de 60 dias sem commit no repositório.
 
 Para ligar:
 
@@ -216,28 +235,12 @@ Para ligar:
    - **Value**: `https://SUA-URL.onrender.com` (sem barra no fim)
 4. Abra a aba **Actions** → **Manter a API acordada** → **Run workflow** para testar na hora.
 
-Deu certo se o resumo da execução mostrar `resposta: 200`.
+Ter os dois ao mesmo tempo não atrapalha: o `/ping` é barato.
 
-### O que esperar
+### Se mesmo assim ele dormir
 
-- **O agendamento do GitHub atrasa.** Em horário de pico a fila do Actions empurra a execução
-  alguns minutos, e algumas podem ser puladas. Com intervalo de 10 minutos e sono de 15, há
-  folga para um atraso ocasional — mas não para uma pausa longa.
-- **O GitHub desativa workflows agendados após 60 dias sem commit no repositório.** Se você
-  passar dois meses sem mexer no código, o ping simplesmente para, sem avisar. O painel de
-  Actions mostra um botão para reativar.
-
-### Reforço opcional: cron-job.org
-
-Imune aos dois problemas acima, e também gratuito:
-
-1. Acesse **cron-job.org** e crie a conta.
-2. **Create cronjob**.
-3. **Title**: `Stewer API` · **URL**: `https://SUA-URL.onrender.com/ping`
-4. Em **Schedule**, escolha **Every 10 minutes**.
-5. Salve e ative.
-
-Ter os dois ao mesmo tempo não atrapalha: o `/ping` é barato e não toca no banco.
+O app espera até um minuto e meio o servidor acordar antes de mostrar erro, e avisa
+"Conectando ao servidor" no login e no cadastro enquanto isso.
 
 ### A conta das horas
 
