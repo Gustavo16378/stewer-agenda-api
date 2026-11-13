@@ -44,13 +44,15 @@ jobs:
             echo "pronto=sim" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Instalar cliente do PostgreSQL 17
+      # O pg_dump precisa ser da mesma versao do servidor ou mais novo. O Neon esta
+      # no PostgreSQL 18; se ele subir de versao, troque o numero aqui e no passo abaixo.
+      - name: Instalar cliente do PostgreSQL 18
         if: steps.config.outputs.pronto == 'sim'
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-18
 
       - name: Gerar o dump criptografado
         if: steps.config.outputs.pronto == 'sim'
@@ -60,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           ARQUIVO="stewer-$(date -u +%F).sql.gz.gpg"
-          /usr/lib/postgresql/17/bin/pg_dump "$URL" --no-owner --no-privileges \
+          /usr/lib/postgresql/18/bin/pg_dump "$URL" --no-owner --no-privileges \
             | gzip -9 \
             | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$SENHA" -o "$ARQUIVO"
           echo "ARQUIVO=$ARQUIVO" >> "$GITHUB_ENV"
