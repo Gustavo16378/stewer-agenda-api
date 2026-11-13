@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import dev.gustavo.stewer.domain.Agendamento;
@@ -40,6 +41,7 @@ import dev.gustavo.stewer.security.FreioDeTentativas;
 import dev.gustavo.stewer.security.TokenService;
 
 import io.quarkus.elytron.security.common.BcryptUtil;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -152,16 +154,27 @@ public class AuthService {
      * descobrir quem e cliente do estudio. Pedir de novo invalida o anterior;
      * mais de 3 pedidos em 15 minutos para a mesma conta sao ignorados.
      */
-    @Transactional
     public void esqueciSenha(EsqueciSenhaRequest dto) {
+        // O e-mail sai DEPOIS do commit, fora da transacao. Antes saia dentro dela, e um
+        // SMTP que nao responde (o Render gratis bloqueia a porta 587) segurava a
+        // transacao ate o limite de 60s e a resposta virava 500.
+        Optional<EmailPronto> pronto = QuarkusTransaction.requiringNew().call(() -> gerarCodigo(dto));
+        pronto.ifPresent(p -> envioDeEmail.enviar(p.para(), p.email().assunto(), p.email().texto(),
+                p.email().html()));
+    }
+
+    private record EmailPronto(String para, Modelos.Email email) {
+    }
+
+    private Optional<EmailPronto> gerarCodigo(EsqueciSenhaRequest dto) {
         Tenant tenant = tenantService.resolver(dto.tenantSlug());
         Usuario usuario = usuarioRepository.porEmail(tenant.getId(), dto.email()).orElse(null);
         if (usuario == null) {
-            return;
+            return Optional.empty();
         }
         OffsetDateTime agora = OffsetDateTime.now(ZoneOffset.UTC);
         if (codigoRepository.pedidosDesde(tenant.getId(), usuario.getId(), agora.minusMinutes(15)) >= 3) {
-            return;
+            return Optional.empty();
         }
 
         String codigo = String.format("%06d", ALEATORIO.nextInt(1_000_000));
@@ -172,9 +185,8 @@ public class AuthService {
         registro.setExpiraEm(agora.plusMinutes(VALIDADE_CODIGO_MINUTOS));
         codigoRepository.persist(registro);
 
-        Modelos.Email email = Modelos.codigoDeRedefinicao(tenant.getNome(), usuario.getNome(),
-                codigo, VALIDADE_CODIGO_MINUTOS);
-        envioDeEmail.enviar(usuario.getEmail(), email.assunto(), email.texto(), email.html());
+        return Optional.of(new EmailPronto(usuario.getEmail(), Modelos.codigoDeRedefinicao(
+                tenant.getNome(), usuario.getNome(), codigo, VALIDADE_CODIGO_MINUTOS)));
     }
 
     /**
