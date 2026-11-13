@@ -316,7 +316,7 @@ O caminho gratuito é o **Brevo** (300 e-mails por dia no plano grátis):
 |---|---|
 | `EMAIL_HABILITADO` | `true` |
 | `SMTP_HOST` | `smtp-relay.brevo.com` |
-| `SMTP_PORTA` | `587` |
+| `SMTP_PORTA` | `2525` (o Render grátis bloqueia 25, 465 e 587) |
 | `SMTP_USUARIO` | o login SMTP que o Brevo mostra |
 | `SMTP_SENHA` | a SMTP key |
 | `EMAIL_REMETENTE` | opcional; o padrão é `Stewer Gabriel <nao-responda@stewergabriel.com>` |
