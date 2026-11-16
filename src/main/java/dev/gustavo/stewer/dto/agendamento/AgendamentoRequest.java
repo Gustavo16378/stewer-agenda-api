@@ -53,7 +53,20 @@ public record AgendamentoRequest(
         @Size(max = AgendamentoRequest.MAXIMO_DE_SERVICOS,
                 message = "Marque no maximo " + AgendamentoRequest.MAXIMO_DE_SERVICOS + " servicos por vez")
         @Schema(description = "Servicos do atendimento, na ordem; a soma das duracoes define o fim")
-        List<UUID> servicoIds) {
+        List<UUID> servicoIds,
+
+        @Schema(description = "So equipe. true lanca um atendimento que JA aconteceu (o cliente "
+                + "foi atendido sem marcar pelo app): o inicio fica no passado, ate "
+                + AgendamentoRequest.DIAS_PARA_LANCAR_ATENDIMENTO + " dias atras, fora da grade se "
+                + "for o caso, e o agendamento ja nasce CONCLUIDO")
+        Boolean jaAtendido) {
+
+    /** Ate quantos dias atras a equipe pode lancar um atendimento ja feito. */
+    public static final int DIAS_PARA_LANCAR_ATENDIMENTO = 30;
+
+    public boolean lancandoAtendimentoFeito() {
+        return Boolean.TRUE.equals(jaAtendido);
+    }
 
     public static final int MAXIMO_DE_SERVICOS = 6;
 

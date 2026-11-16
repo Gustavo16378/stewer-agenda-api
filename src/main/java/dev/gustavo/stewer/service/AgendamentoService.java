@@ -113,10 +113,15 @@ public class AgendamentoService {
         OffsetDateTime inicio = dto.inicio().withOffsetSameInstant(ZoneOffset.UTC);
         Janela pedido = new Janela(inicio, inicio.plus(HorariosLivresService.duracaoTotal(servicos)));
 
-        if (usuarioLogado.temRole(Role.CLIENTE)) {
-            limitesDeReserva.exigirDentroDosLimites(tenantId, cliente.getId(), inicio);
+        boolean jaAtendido = dto.lancandoAtendimentoFeito();
+        if (jaAtendido) {
+            exigirAtendimentoJaFeito(pedido);
+        } else {
+            if (usuarioLogado.temRole(Role.CLIENTE)) {
+                limitesDeReserva.exigirDentroDosLimites(tenantId, cliente.getId(), inicio);
+            }
+            exigirHorarioReservavel(tenantId, profissional.getId(), pedido, null);
         }
-        exigirHorarioReservavel(tenantId, profissional.getId(), pedido, null);
 
         Agendamento agendamento = new Agendamento();
         agendamento.setTenantId(tenantId);
@@ -125,7 +130,7 @@ public class AgendamentoService {
         agendamento.definirServicos(servicos);
         agendamento.setInicio(pedido.inicio());
         agendamento.setFim(pedido.fim());
-        agendamento.setStatus(StatusAgendamento.AGENDADO);
+        agendamento.setStatus(jaAtendido ? StatusAgendamento.CONCLUIDO : StatusAgendamento.AGENDADO);
         agendamento.setObservacao(normalizar(dto.observacao()));
 
         // Flush para que id e createdAt ja existam ao montar o 201 e o Location.
@@ -136,6 +141,15 @@ public class AgendamentoService {
         // e a restricao EXCLUDE da V4, e ViolacaoDeBanco traduz a violacao dela
         // no mesmo 409 -- no mapper, porque o INSERT pode sair so no commit.
         agendamentoRepository.persistAndFlush(agendamento);
+
+        if (jaAtendido) {
+            // Ja aconteceu: nada de aviso de "horario marcado" nem lembrete.
+            auditoria.registrar(tenantId, Auditoria.Acao.CONCLUIU, Auditoria.Entidade.AGENDAMENTO,
+                    agendamento.getId(), cliente.getId(), "Lancou atendimento ja feito: "
+                            + agendamento.nomeDosServicos() + " de " + cliente.getNome() + " com "
+                            + profissional.getUsuario().getNome() + ", " + quando(tenantId, pedido.inicio()));
+            return AgendamentoMapper.paraResponse(agendamento);
+        }
 
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.AGENDAMENTO,
                 agendamento.getId(), cliente.getId(), "Marcou " + agendamento.nomeDosServicos() + " de " + cliente.getNome()
@@ -191,6 +205,34 @@ public class AgendamentoService {
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO,
                 usuarioLogado.usuarioId()));
         return AgendamentoMapper.paraResponse(agendamento);
+    }
+
+    /**
+     * Lancar atendimento ja feito: o cliente foi atendido sem ter marcado pelo
+     * app (chegou na hora, combinou pelo WhatsApp) e a equipe registra depois,
+     * para entrar no historico dele e no financeiro.
+     *
+     * <p>So a equipe lanca. O inicio tem de ja ter passado e nao pode ser mais
+     * antigo que {@link AgendamentoRequest#DIAS_PARA_LANCAR_ATENDIMENTO} dias.
+     * Grade, bloqueio e sobreposicao nao contam: o atendimento aconteceu, e o
+     * registro tem de refletir isso mesmo que tenha sido fora do horario ou
+     * no lugar de alguem que faltou. Como nasce CONCLUIDO, nao ocupa a agenda
+     * (a restricao da V4 so vale para AGENDADO).
+     */
+    private void exigirAtendimentoJaFeito(Janela pedido) {
+        if (usuarioLogado.temRole(Role.CLIENTE)) {
+            throw new AcessoNegadoException("So a equipe lanca atendimento ja feito");
+        }
+        OffsetDateTime agora = OffsetDateTime.now(ZoneOffset.UTC);
+        if (pedido.inicio().isAfter(agora)) {
+            throw new RegraNegocioException("ATENDIMENTO_NO_FUTURO",
+                    "Esse horario ainda nao chegou. Para o que vai acontecer, marque um horario");
+        }
+        if (pedido.inicio().isBefore(agora.minusDays(AgendamentoRequest.DIAS_PARA_LANCAR_ATENDIMENTO))) {
+            throw new RegraNegocioException("ATENDIMENTO_ANTIGO_DEMAIS",
+                    "Da para lancar atendimentos de ate "
+                            + AgendamentoRequest.DIAS_PARA_LANCAR_ATENDIMENTO + " dias atras");
+        }
     }
 
     /**
