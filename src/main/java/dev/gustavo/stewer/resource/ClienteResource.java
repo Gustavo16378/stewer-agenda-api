@@ -82,6 +82,26 @@ public class ClienteResource {
         return clienteService.listar(usuarioLogado.tenantId(), busca, pagina, tamanho);
     }
 
+    @POST
+    @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })
+    @Operation(summary = "Cadastra um cliente pelo painel",
+            description = "Para marcar horario para quem pediu por fora do app. Nome e telefone "
+                    + "bastam; com e-mail, o cliente pode criar a conta depois e assumir o cadastro.")
+    @SecurityRequirement(name = "bearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "201", description = "Cliente cadastrado"),
+            @APIResponse(responseCode = "400", description = "Nome ou telefone faltando, e-mail invalido"),
+            @APIResponse(responseCode = "409", description = "E-mail ja usado por outro cliente")
+    })
+    public Response cadastrar(
+            @Valid @NotNull(message = "corpo da requisicao e obrigatorio")
+            dev.gustavo.stewer.dto.cliente.CadastrarClienteRequest dto,
+            @Context UriInfo uriInfo) {
+        ClienteDetalheResponse criado = clienteService.cadastrar(usuarioLogado.tenantId(), dto);
+        URI local = uriInfo.getAbsolutePathBuilder().path(criado.id().toString()).build();
+        return Response.created(local).entity(criado).build();
+    }
+
     @GET
     @Path("/aniversariantes")
     @RolesAllowed({ Role.PROFISSIONAL_STR, Role.ADMIN_STR })

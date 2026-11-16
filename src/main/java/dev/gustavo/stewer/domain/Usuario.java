@@ -14,8 +14,24 @@ public class Usuario extends TenantOwnedEntity {
     @Column(name = "nome", nullable = false, length = 120)
     private String nome;
 
-    @Column(name = "email", nullable = false, length = 180)
+    /** Nulo so em cliente cadastrado pela equipe sem e-mail. */
+    @Column(name = "email", length = 180)
     private String email;
+
+    /**
+     * Cliente que a equipe cadastrou pelo painel e que ainda nao criou a
+     * propria conta. Quem registrar com o mesmo e-mail assume este cadastro.
+     */
+    @Column(name = "cadastrado_pela_equipe", nullable = false)
+    private boolean cadastradoPelaEquipe;
+
+    public boolean isCadastradoPelaEquipe() {
+        return cadastradoPelaEquipe;
+    }
+
+    public void setCadastradoPelaEquipe(boolean cadastradoPelaEquipe) {
+        this.cadastradoPelaEquipe = cadastradoPelaEquipe;
+    }
 
     @Column(name = "telefone", length = 30)
     private String telefone;

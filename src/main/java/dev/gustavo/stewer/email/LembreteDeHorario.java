@@ -65,6 +65,7 @@ public class LembreteDeHorario {
                    and a.inicio > :desde
                    and a.inicio <= :ate
                    and c.lembreteEmail = true
+                   and c.email is not null
                    and c.deletedAt is null
                 """, Agendamento.class)
                 .setParameter("status", StatusAgendamento.AGENDADO)

@@ -69,6 +69,51 @@ public class ClienteService {
     @Inject
     UsuarioLogado usuarioLogado;
 
+    @Inject
+    AuthService authService;
+
+    private static final java.security.SecureRandom ALEATORIO = new java.security.SecureRandom();
+
+    /**
+     * Cadastra um cliente pelo painel: quem pediu horario pelo WhatsApp e ainda
+     * nao tem conta. Ele nao consegue entrar (a senha e aleatoria e ninguem a
+     * conhece) ate criar a conta pelo app com o mesmo e-mail, ou pedir "esqueci
+     * a senha" -- ai assume este cadastro e os horarios ja marcados.
+     */
+    @Transactional
+    public ClienteDetalheResponse cadastrar(UUID tenantId, dev.gustavo.stewer.dto.cliente.CadastrarClienteRequest dto) {
+        exigirEquipeViva();
+        String email = AuthService.normalizarEmail(dto.email());
+        if (email != null && email.isBlank()) {
+            email = null;
+        }
+        if (email != null && usuarioRepository.emailEmUso(tenantId, email)) {
+            throw new dev.gustavo.stewer.exception.ConflitoException("EMAIL_EM_USO",
+                    "Ja existe um cliente com este e-mail. Busque pelo nome na lista de clientes");
+        }
+
+        byte[] segredo = new byte[32];
+        ALEATORIO.nextBytes(segredo);
+
+        Usuario cliente = new Usuario();
+        cliente.setTenantId(tenantId);
+        cliente.setNome(dto.nome().trim());
+        cliente.setEmail(email);
+        cliente.setTelefone(AuthService.normalizarTelefone(dto.telefone()));
+        cliente.setSenhaHash(io.quarkus.elytron.security.common.BcryptUtil.bcryptHash(
+                java.util.Base64.getEncoder().encodeToString(segredo)));
+        cliente.setRole(dev.gustavo.stewer.domain.Role.CLIENTE);
+        cliente.setCadastradoPelaEquipe(true);
+        // sem e-mail nao ha para onde mandar lembrete
+        cliente.setLembreteEmail(email != null);
+        usuarioRepository.persistAndFlush(cliente);
+        authService.guardarNascimento(tenantId, cliente, dto.dataNascimento());
+
+        auditoria.registrar(tenantId, Auditoria.Acao.CADASTROU, Auditoria.Entidade.CLIENTE,
+                cliente.getId(), cliente.getId(), "Cadastrou " + cliente.getNome() + " pelo painel");
+        return detalhar(tenantId, cliente.getId());
+    }
+
     /**
      * Lista os clientes do estabelecimento, opcionalmente filtrando por trecho
      * de nome, e-mail ou telefone.
