@@ -68,7 +68,7 @@ public class AvisosDeAgenda {
 
         Tenant tenant = tenantRepository.findById(a.getTenantId());
         String quando = a.getInicio().atZoneSameInstant(tenant.zoneId()).format(QUANDO);
-        String servico = a.getServico().getNome();
+        String servico = a.nomeDosServicos();
         String titulo;
         String corpo;
         if (foiOCliente) {

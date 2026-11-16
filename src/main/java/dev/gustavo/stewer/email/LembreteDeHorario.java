@@ -77,7 +77,7 @@ public class LembreteDeHorario {
             Tenant tenant = tenantRepository.findById(a.getTenantId());
             String quando = a.getInicio().atZoneSameInstant(tenant.zoneId()).format(QUANDO);
             Modelos.Email email = Modelos.lembrete(tenant.getNome(), a.getCliente().getNome(),
-                    a.getServico().getNome(), a.getProfissional().getUsuario().getNome(), quando);
+                    a.nomeDosServicos(), a.getProfissional().getUsuario().getNome(), quando);
             if (!envioDeEmail.enviar(a.getCliente().getEmail(), email.assunto(), email.texto(),
                     email.html())) {
                 // Um envio falhou: o SMTP provavelmente esta fora. Insistir em cada um

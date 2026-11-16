@@ -75,7 +75,7 @@ public class RelatorioService {
 
         return new RelatorioFinanceiroResponse(de, ate, agrupamento.name(), totais, totaisAntes,
                 serie(atual, de, ate, agrupamento, fuso),
-                fatias(atual, a -> a.getServico().getNome()),
+                porServico(atual),
                 fatias(atual, a -> a.getProfissional().getUsuario().getNome()),
                 porDiaDaSemana(atual, fuso));
     }
@@ -177,6 +177,34 @@ public class RelatorioService {
             long[] v = por.computeIfAbsent(chave.apply(a), k -> new long[2]);
             v[0]++;
             v[1] += a.precoEfetivo();
+        }
+        return por.entrySet().stream()
+                .map(e -> new Fatia(e.getKey(), (int) e.getValue()[0], e.getValue()[1]))
+                .sorted(Comparator.comparingLong(Fatia::faturadoCentavos).reversed())
+                .toList();
+    }
+
+    /**
+     * Faturamento por servico. Atendimento com mais de um servico entra em cada
+     * um deles, com o preco daquele servico -- e nao o total no primeiro.
+     */
+    private static List<Fatia> porServico(List<Agendamento> lista) {
+        Map<String, long[]> por = new LinkedHashMap<>();
+        for (Agendamento a : lista) {
+            if (a.getStatus() != StatusAgendamento.CONCLUIDO) {
+                continue;
+            }
+            if (a.getServicos().isEmpty()) {
+                long[] v = por.computeIfAbsent(a.getServico().getNome(), k -> new long[2]);
+                v[0]++;
+                v[1] += a.precoEfetivo();
+                continue;
+            }
+            for (var item : a.getServicos()) {
+                long[] v = por.computeIfAbsent(item.getServico().getNome(), k -> new long[2]);
+                v[0]++;
+                v[1] += item.getPrecoCentavos();
+            }
         }
         return por.entrySet().stream()
                 .map(e -> new Fatia(e.getKey(), (int) e.getValue()[0], e.getValue()[1]))

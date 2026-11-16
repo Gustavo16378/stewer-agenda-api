@@ -61,7 +61,7 @@ public final class MetricasDoCliente {
 
         return new MetricasClienteResponse(visitas, total, ticket, intervalo, desdeUltima, faltas,
                 cancelamentos, emCimaDaHora,
-                maisFrequente(concluidos, a -> a.getServico().getNome()),
+                maisFrequente(concluidos, Agendamento::nomeDosServicos),
                 maisFrequente(concluidos, a -> a.getProfissional().getUsuario().getNome()),
                 proximo);
     }
