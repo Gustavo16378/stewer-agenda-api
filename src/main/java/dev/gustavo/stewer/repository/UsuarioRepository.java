@@ -44,6 +44,19 @@ public class UsuarioRepository implements TenantScopedRepository<Usuario> {
                     .list();
         }
         String termo = "%" + busca.trim().toLowerCase() + "%";
+        // Telefone se compara so pelos digitos: "99111-0000" acha "(63) 9 9111-0000".
+        // Com menos de 4 digitos na busca isso casaria com quase todo mundo.
+        String digitos = busca.replaceAll("\\D", "");
+        if (digitos.length() >= 4) {
+            return vivos(tenantId,
+                    "role = :role and (lower(nome) like :termo or lower(email) like :termo "
+                            + "or cast(function('regexp_replace', telefone, '[^0-9]', '', 'g') as String) like :digitos)",
+                    ordem,
+                    Parameters.with("role", Role.CLIENTE).and("termo", termo)
+                            .and("digitos", "%" + digitos + "%"))
+                    .page(pagina, tamanho)
+                    .list();
+        }
         return vivos(tenantId,
                 "role = :role and (lower(nome) like :termo or lower(email) like :termo or telefone like :termo)",
                 ordem,

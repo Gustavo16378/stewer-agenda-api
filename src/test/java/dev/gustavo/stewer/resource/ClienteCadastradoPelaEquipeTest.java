@@ -85,6 +85,13 @@ class ClienteCadastradoPelaEquipeTest {
                 .then().statusCode(200)
                 .body("id", hasItem(id));
 
+        // o numero escrito de outro jeito tambem acha: so os digitos contam
+        given().header("Authorization", "Bearer " + tokenStewer)
+                .queryParam("busca", "63 991110000")
+                .when().get("/clientes")
+                .then().statusCode(200)
+                .body("id", hasItem(id));
+
         given().header("Authorization", "Bearer " + tokenStewer)
                 .contentType(ContentType.JSON)
                 .body(Map.of("profissionalId", profissional.getId().toString(),
