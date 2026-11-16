@@ -39,8 +39,8 @@ import jakarta.transaction.Transactional;
  *   <li>subtrai os agendamentos que ocupam a agenda -- so status
  *       {@code AGENDADO}; cancelado, concluido e nao-comparecimento liberam
  *       o horario;</li>
- *   <li>fatia o que sobrou pela duracao do servico, descartando slot que nao
- *       caiba inteiro na faixa.</li>
+ *   <li>fatia o que sobrou pela duracao do atendimento (a soma dos servicos
+ *       escolhidos), descartando slot que nao caiba inteiro na faixa.</li>
  * </ol>
  *
  * <p>Todo intervalo aqui e MEIO-ABERTO: {@code [inicio, fim)}. Dois intervalos
@@ -101,29 +101,46 @@ public class HorariosLivresService {
     @Transactional
     public HorariosLivresResponse calcular(UUID tenantId, UUID profissionalId, LocalDate data,
             UUID servicoId) {
-        return calcular(tenantId, profissionalId, data, servicoId, null);
+        return calcular(tenantId, profissionalId, data, List.of(servicoId), null);
     }
 
     /**
-     * Igual ao calculo normal, mas sem contar {@code ignorarAgendamentoId} como
-     * ocupacao: e o que a tela de remarcar precisa para mostrar o horario atual
-     * e os vizinhos dele como livres.
+     * Slots do dia para fazer todos os {@code servicoIds} em sequencia: o slot
+     * tem o tamanho da soma das duracoes.
+     *
+     * <p>Com {@code ignorarAgendamentoId} (tela de remarcar) o agendamento
+     * movido nao conta como ocupacao, e o tamanho do slot e o que ele ja
+     * reserva -- e o mesmo que {@code remarcar} vai exigir, mesmo que o
+     * catalogo tenha mudado de duracao depois da marcacao.
      */
     @Transactional
     public HorariosLivresResponse calcular(UUID tenantId, UUID profissionalId, LocalDate data,
-            UUID servicoId, UUID ignorarAgendamentoId) {
+            List<UUID> servicoIds, UUID ignorarAgendamentoId) {
         Profissional profissional = exigirProfissionalAtivo(tenantId, profissionalId);
-        Servico servico = exigirServicoAtivo(tenantId, servicoId);
+        List<Servico> servicos = exigirServicosAtivos(tenantId, servicoIds);
+
+        Duration duracao = duracaoTotal(servicos);
+        if (ignorarAgendamentoId != null) {
+            duracao = agendamentoRepository.buscarVivo(tenantId, ignorarAgendamentoId)
+                    .map(Agendamento::duracao)
+                    .orElse(duracao);
+        }
 
         List<Janela> livres = janelasLivres(tenantId, profissional.getId(), data,
-                servico.duracao(), ignorarAgendamentoId);
+                duracao, ignorarAgendamentoId);
 
         List<HorarioLivreResponse> horarios = livres.stream()
                 .map(j -> new HorarioLivreResponse(j.inicio(), j.fim()))
                 .toList();
 
-        return new HorariosLivresResponse(data, profissional.getId(), servico.getId(),
-                servico.getDuracaoMinutos(), horarios);
+        return new HorariosLivresResponse(data, profissional.getId(), servicos.get(0).getId(),
+                (int) duracao.toMinutes(), horarios,
+                servicos.stream().map(Servico::getId).toList());
+    }
+
+    /** Soma das duracoes: os servicos sao feitos um depois do outro. */
+    public static Duration duracaoTotal(List<Servico> servicos) {
+        return servicos.stream().map(Servico::duracao).reduce(Duration.ZERO, Duration::plus);
     }
 
     /**
@@ -272,6 +289,25 @@ public class HorariosLivresService {
                     "Este profissional nao esta atendendo no momento");
         }
         return profissional;
+    }
+
+    /**
+     * Cada servico pedido, na ordem, existindo e ativo. Repetido conta uma vez;
+     * lista vazia e 422 (o resource ja barra antes, isto e a rede de baixo).
+     */
+    List<Servico> exigirServicosAtivos(UUID tenantId, List<UUID> servicoIds) {
+        List<UUID> ids = servicoIds == null ? List.of()
+                : new java.util.ArrayList<>(new java.util.LinkedHashSet<>(
+                        servicoIds.stream().filter(java.util.Objects::nonNull).toList()));
+        if (ids.isEmpty()) {
+            throw new RegraNegocioException("SERVICO_OBRIGATORIO", "Escolha pelo menos um servico");
+        }
+        if (ids.size() > dev.gustavo.stewer.dto.agendamento.AgendamentoRequest.MAXIMO_DE_SERVICOS) {
+            throw new RegraNegocioException("SERVICOS_DEMAIS", "Marque no maximo "
+                    + dev.gustavo.stewer.dto.agendamento.AgendamentoRequest.MAXIMO_DE_SERVICOS
+                    + " servicos por vez");
+        }
+        return ids.stream().map(id -> exigirServicoAtivo(tenantId, id)).toList();
     }
 
     Servico exigirServicoAtivo(UUID tenantId, UUID servicoId) {

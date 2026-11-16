@@ -25,15 +25,32 @@ public final class AgendamentoMapper {
                 agendamento.getProfissional().getId(),
                 agendamento.getProfissional().getUsuario().getNome(),
                 agendamento.getServico().getId(),
-                agendamento.getServico().getNome(),
-                agendamento.getServico().getDuracaoMinutos(),
+                agendamento.nomeDosServicos(),
+                (int) agendamento.duracao().toMinutes(),
                 agendamento.precoEfetivo(),
                 agendamento.getInicio(),
                 agendamento.getFim(),
                 agendamento.getStatus(),
                 agendamento.getObservacao(),
                 agendamento.getCreatedAt(),
-                primeiraVisita);
+                primeiraVisita,
+                itens(agendamento));
+    }
+
+    /**
+     * A lista de servicos. Agendamento sem lista (so possivel antes da V12
+     * rodar) vira um item com o servico principal.
+     */
+    private static List<AgendamentoResponse.Item> itens(Agendamento agendamento) {
+        if (agendamento.getServicos().isEmpty()) {
+            return List.of(new AgendamentoResponse.Item(agendamento.getServico().getId(),
+                    agendamento.getServico().getNome(), (int) agendamento.duracao().toMinutes(),
+                    agendamento.precoEfetivo()));
+        }
+        return agendamento.getServicos().stream()
+                .map(i -> new AgendamentoResponse.Item(i.getServico().getId(), i.getServico().getNome(),
+                        i.getDuracaoMinutos(), i.getPrecoCentavos()))
+                .toList();
     }
 
     public static List<AgendamentoResponse> paraResponses(List<Agendamento> agendamentos) {

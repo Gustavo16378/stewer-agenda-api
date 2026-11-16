@@ -1,6 +1,7 @@
 package dev.gustavo.stewer.resource;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -16,6 +17,7 @@ import dev.gustavo.stewer.service.HorariosLivresService;
 
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -44,7 +46,7 @@ public class HorariosLivresResource {
 
     @GET
     @Authenticated
-    @Operation(summary = "Slots livres do profissional em um dia, fatiados pela duracao do servico")
+    @Operation(summary = "Slots livres do profissional em um dia, fatiados pela duracao dos servicos")
     @SecurityRequirement(name = "bearerAuth")
     @APIResponses({
             @APIResponse(responseCode = "200",
@@ -59,9 +61,10 @@ public class HorariosLivresResource {
             @QueryParam("data")
             @NotNull(message = "data e obrigatoria") LocalDate data,
 
-            @Parameter(description = "Servico desejado; a duracao dele define o tamanho do slot")
+            @Parameter(description = "Servico desejado. Repita o parametro para mais de um "
+                    + "(?servicoId=a&servicoId=b): o slot tem a soma das duracoes")
             @QueryParam("servicoId")
-            @NotNull(message = "servicoId e obrigatorio") UUID servicoId,
+            @NotEmpty(message = "servicoId e obrigatorio") List<UUID> servicoId,
 
             @Parameter(description = "Ao remarcar: o agendamento que esta sendo movido, para que "
                     + "o horario atual dele conte como livre")

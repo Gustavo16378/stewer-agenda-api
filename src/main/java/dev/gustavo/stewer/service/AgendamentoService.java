@@ -107,10 +107,11 @@ public class AgendamentoService {
         Profissional profissional =
                 horariosLivresService.exigirProfissionalAtivo(tenantId, dto.profissionalId());
         exigirPodeUsarAgenda(profissional);
-        Servico servico = horariosLivresService.exigirServicoAtivo(tenantId, dto.servicoId());
+        List<Servico> servicos = horariosLivresService.exigirServicosAtivos(tenantId,
+                dto.servicosPedidos());
 
         OffsetDateTime inicio = dto.inicio().withOffsetSameInstant(ZoneOffset.UTC);
-        Janela pedido = new Janela(inicio, inicio.plus(servico.duracao()));
+        Janela pedido = new Janela(inicio, inicio.plus(HorariosLivresService.duracaoTotal(servicos)));
 
         if (usuarioLogado.temRole(Role.CLIENTE)) {
             limitesDeReserva.exigirDentroDosLimites(tenantId, cliente.getId(), inicio);
@@ -121,12 +122,11 @@ public class AgendamentoService {
         agendamento.setTenantId(tenantId);
         agendamento.setCliente(cliente);
         agendamento.setProfissional(profissional);
-        agendamento.setServico(servico);
+        agendamento.definirServicos(servicos);
         agendamento.setInicio(pedido.inicio());
         agendamento.setFim(pedido.fim());
         agendamento.setStatus(StatusAgendamento.AGENDADO);
         agendamento.setObservacao(normalizar(dto.observacao()));
-        agendamento.setPrecoCentavos(servico.getPrecoCentavos());
 
         // Flush para que id e createdAt ja existam ao montar o 201 e o Location.
         //
@@ -138,7 +138,7 @@ public class AgendamentoService {
         agendamentoRepository.persistAndFlush(agendamento);
 
         auditoria.registrar(tenantId, Auditoria.Acao.CRIOU, Auditoria.Entidade.AGENDAMENTO,
-                agendamento.getId(), cliente.getId(), "Marcou " + servico.getNome() + " de " + cliente.getNome()
+                agendamento.getId(), cliente.getId(), "Marcou " + agendamento.nomeDosServicos() + " de " + cliente.getNome()
                         + " com " + profissional.getUsuario().getNome() + ", " + quando(tenantId, pedido.inicio()));
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CRIADO,
                 usuarioLogado.usuarioId()));
@@ -147,7 +147,8 @@ public class AgendamentoService {
 
     /**
      * Troca o horario (e, se pedido, o profissional) de um agendamento que ainda
-     * vai acontecer, numa transacao so. O servico e a duracao ficam os mesmos.
+     * vai acontecer, numa transacao so. Os servicos e a duracao reservada ficam
+     * os mesmos -- mesmo que o catalogo tenha mudado de duracao depois.
      *
      * <p>O proprio agendamento e ignorado na checagem de sobreposicao: remarcar
      * 30 minutos para frente dentro do mesmo atendimento e valido.
@@ -172,7 +173,7 @@ public class AgendamentoService {
         }
 
         OffsetDateTime inicio = dto.inicio().withOffsetSameInstant(ZoneOffset.UTC);
-        Janela pedido = new Janela(inicio, inicio.plus(agendamento.getServico().duracao()));
+        Janela pedido = new Janela(inicio, inicio.plus(agendamento.duracao()));
         exigirHorarioReservavel(tenantId, profissional.getId(), pedido, agendamento.getId());
 
         String antes = quando(tenantId, agendamento.getInicio());
@@ -185,7 +186,7 @@ public class AgendamentoService {
 
         auditoria.registrar(tenantId, Auditoria.Acao.REMARCOU, Auditoria.Entidade.AGENDAMENTO,
                 agendamento.getId(), agendamento.getCliente().getId(), "Remarcou "
-                        + agendamento.getServico().getNome() + " de " + agendamento.getCliente().getNome()
+                        + agendamento.nomeDosServicos() + " de " + agendamento.getCliente().getNome()
                         + " de " + antes + " para " + quando(tenantId, pedido.inicio()));
         eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.REMARCADO,
                 usuarioLogado.usuarioId()));
@@ -354,7 +355,7 @@ public class AgendamentoService {
             default -> "Registrou falta em ";
         };
         auditoria.registrar(tenantId, acao, Auditoria.Entidade.AGENDAMENTO, agendamento.getId(),
-                agendamento.getCliente().getId(), verbo + agendamento.getServico().getNome() + " de "
+                agendamento.getCliente().getId(), verbo + agendamento.nomeDosServicos() + " de "
                         + agendamento.getCliente().getNome() + ", " + quando(tenantId, agendamento.getInicio()));
         if (novo == StatusAgendamento.CANCELADO) {
             eventos.fire(new AgendamentoEvento(agendamento.getId(), AgendamentoEvento.Tipo.CANCELADO,

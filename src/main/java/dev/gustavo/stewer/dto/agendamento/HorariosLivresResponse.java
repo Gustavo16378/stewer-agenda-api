@@ -19,7 +19,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record HorariosLivresResponse(
         LocalDate data,
         UUID profissionalId,
+        @Schema(description = "O primeiro servico pedido")
         UUID servicoId,
+        @Schema(description = "Soma das duracoes dos servicos: o tamanho de cada slot")
         int duracaoMinutos,
-        List<HorarioLivreResponse> horarios) {
+        List<HorarioLivreResponse> horarios,
+        @Schema(description = "Todos os servicos considerados no calculo")
+        List<UUID> servicoIds) {
 }
