@@ -105,7 +105,12 @@ public class AuthService {
         }
 
         String email = normalizarEmail(dto.email());
-        if (usuarioRepository.emailEmUso(tenant.getId(), email)) {
+        Usuario existente = usuarioRepository.porEmail(tenant.getId(), email).orElse(null);
+        if (existente != null && existente.isCadastradoPelaEquipe()
+                && existente.getRole() == Role.CLIENTE) {
+            return assumirCadastroDaEquipe(tenant.getId(), existente, dto);
+        }
+        if (existente != null) {
             throw new ConflitoException("EMAIL_EM_USO", "Ja existe uma conta com este e-mail");
         }
 
@@ -127,6 +132,27 @@ public class AuthService {
                 Auditoria.Acao.CADASTROU, Auditoria.Entidade.CLIENTE, usuario.getId(), usuario.getId(),
                 usuario.getNome() + " criou a conta pelo app");
 
+        return montarToken(usuario);
+    }
+
+    /**
+     * O cliente que a equipe cadastrou com este e-mail esta criando a conta:
+     * ele assume o cadastro (e os horarios ja marcados) em vez de virar outro
+     * cliente. Nome e telefone passam a ser os que ele mesmo digitou.
+     */
+    private TokenResponse assumirCadastroDaEquipe(UUID tenantId, Usuario usuario, RegistrarRequest dto) {
+        usuario.setNome(dto.nome().trim());
+        String telefone = normalizarTelefone(dto.telefone());
+        if (telefone != null) {
+            usuario.setTelefone(telefone);
+        }
+        usuario.setSenhaHash(BcryptUtil.bcryptHash(dto.senha()));
+        usuario.setCadastradoPelaEquipe(false);
+        usuarioRepository.persistAndFlush(usuario);
+        guardarNascimento(tenantId, usuario, dto.dataNascimento());
+        auditoria.registrarComo(tenantId, usuario.getId(), usuario.getNome(), Role.CLIENTE.name(),
+                Auditoria.Acao.CADASTROU, Auditoria.Entidade.CLIENTE, usuario.getId(), usuario.getId(),
+                usuario.getNome() + " criou a conta pelo app e assumiu o cadastro feito pela equipe");
         return montarToken(usuario);
     }
 
@@ -215,6 +241,8 @@ public class AuthService {
         registro.setUsadoEm(agora);
         codigoRepository.persist(registro);
         usuario.setSenhaHash(BcryptUtil.bcryptHash(dto.novaSenha()));
+        // cliente cadastrado pela equipe que definiu a senha pelo e-mail: agora tem conta
+        usuario.setCadastradoPelaEquipe(false);
         usuarioRepository.persist(usuario);
         freio.zerar("login:" + tenant.getId() + ":" + usuario.getEmail());
         return montarToken(usuario);
@@ -298,7 +326,7 @@ public class AuthService {
     }
 
     /** Nulo nao mexe: o campo e opcional e quem nao informa nao apaga o que a equipe pos. */
-    private void guardarNascimento(UUID tenantId, Usuario usuario, java.time.LocalDate data) {
+    void guardarNascimento(UUID tenantId, Usuario usuario, java.time.LocalDate data) {
         if (data == null || usuario.getRole() != Role.CLIENTE) {
             return;
         }
@@ -345,6 +373,8 @@ public class AuthService {
             throw new RegraNegocioException("SENHA_ATUAL_INCORRETA", "A senha atual nao confere");
         }
         usuario.setSenhaHash(BcryptUtil.bcryptHash(dto.novaSenha()));
+        // cliente cadastrado pela equipe que definiu a senha pelo e-mail: agora tem conta
+        usuario.setCadastradoPelaEquipe(false);
         usuarioRepository.persist(usuario);
     }
 
